@@ -1,0 +1,241 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caídas Mayores</title>
+  <link rel="icon" href="favicon.ico">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <main class="app-shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Evaluación funcional con cámara</p>
+        <h1>Caídas Mayores</h1>
+        <p class="hero-copy">Interfaz pensada para trabajo de campo: menos pasos, foco en la imagen y una conclusión clara al final.</p>
+      </div>
+      <div class="hero-actions">
+        <div class="hero-chip">Prototipo clínico</div>
+        <button id="toggleSidebar" class="ghost-button" type="button">Ocultar panel lateral</button>
+      </div>
+    </section>
+
+    <div class="layout">
+      <section class="sidebar">
+        <div class="panel section-panel">
+          <div class="section-head">
+            <p class="section-kicker">Búsqueda</p>
+            <h2>Paciente guardado</h2>
+          </div>
+          <div class="fila fila-busqueda">
+            <div class="campo">
+              <label for="patientSearchName">Buscar por nombre</label>
+              <input id="patientSearchName" type="text" placeholder="Nombre y apellido">
+            </div>
+            <div class="campo">
+              <label for="patientSearchId">Buscar por ID / DNI / HC</label>
+              <input id="patientSearchId" type="text" placeholder="P-0001, DNI o HC">
+            </div>
+            <div class="campo">
+              <label for="patientSearchCenter">Centro</label>
+              <input id="patientSearchCenter" type="text" placeholder="Ej. Patricios">
+            </div>
+          </div>
+          <div class="fila">
+            <div class="campo campo-amplio">
+              <label for="patientSelect">Resultados filtrados</label>
+              <select id="patientSelect">
+                <option value="">Nuevo paciente</option>
+              </select>
+            </div>
+            <div class="campo campo-boton">
+              <label>&nbsp;</label>
+              <button id="newPatient" type="button">Nuevo paciente</button>
+            </div>
+            <div class="campo campo-boton">
+              <label>&nbsp;</label>
+              <button id="importCsv" type="button">Importar CSV</button>
+              <input id="csvFileInput" type="file" accept=".csv,text/csv" hidden>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel section-panel">
+          <div class="section-head">
+            <p class="section-kicker">Datos</p>
+            <h2>Ficha del paciente</h2>
+          </div>
+          <div class="fila">
+            <div class="campo">
+              <label for="patientCode">ID paciente</label>
+              <input id="patientCode" type="text" placeholder="Se asigna al guardar" readonly>
+            </div>
+            <div class="campo campo-amplio">
+              <label for="nombrePaciente">Nombre completo</label>
+              <input id="nombrePaciente" type="text" placeholder="Nombre y apellido">
+            </div>
+            <div class="campo">
+              <label for="fechaNacimiento">Fecha de nacimiento</label>
+              <input id="fechaNacimiento" type="date">
+            </div>
+            <div class="campo">
+              <label for="patientIdentifier">DNI / HC</label>
+              <input id="patientIdentifier" type="text" placeholder="Opcional">
+            </div>
+            <div class="campo">
+              <label for="edadCalculada">Edad</label>
+              <input id="edadCalculada" type="text" placeholder="Automática" readonly>
+            </div>
+            <div class="campo">
+              <label for="sexoPaciente">Sexo</label>
+              <select id="sexoPaciente">
+                <option value="">Seleccionar</option>
+                <option value="F">F</option>
+                <option value="M">M</option>
+              </select>
+            </div>
+            <div class="campo">
+              <label for="centro">Centro</label>
+              <input id="centro" type="text" value="Patricios">
+            </div>
+          </div>
+          <div id="patientHelp" class="patient-help"></div>
+          <div id="historyPanel" class="history-panel"></div>
+        </div>
+
+        <div class="panel section-panel">
+          <div class="section-head">
+            <p class="section-kicker">Prueba</p>
+            <h2>Configuración</h2>
+          </div>
+          <div class="fila">
+            <div class="campo">
+              <label for="prueba">Prueba</label>
+              <select id="prueba">
+                <option value="monopedia">Monopedia</option>
+                <option value="tug">TUG</option>
+                <option value="sit_to_stand">Sit to Stand</option>
+                <option value="otros">Otros</option>
+              </select>
+            </div>
+            <div class="campo campo-amplio">
+              <label for="observaciones">Observaciones</label>
+              <input id="observaciones" type="text" placeholder="Notas breves">
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <section class="content">
+        <div class="media-panel">
+          <div class="status-row">
+            <div id="status" class="status-card">Complete paciente o encienda cámara para empezar.</div>
+            <div id="timer" class="timer-card">00:00</div>
+          </div>
+
+          <div class="stage">
+            <canvas id="canvas" width="960" height="540"></canvas>
+            <video id="video" autoplay playsinline muted></video>
+          </div>
+
+          <div class="panel section-panel controls-panel">
+            <div class="section-head">
+              <p class="section-kicker">Cámara</p>
+              <h2>Captura y análisis</h2>
+            </div>
+            <div class="fila camera-settings">
+              <div class="campo">
+                <label for="cameraMode">Cámara</label>
+                <select id="cameraMode">
+                  <option value="auto">Automática</option>
+                  <option value="environment">Trasera</option>
+                  <option value="user">Frontal</option>
+                </select>
+              </div>
+              <div class="campo">
+                <label for="cameraDevice">Dispositivo</label>
+                <select id="cameraDevice">
+                  <option value="">Predeterminado</option>
+                </select>
+              </div>
+              <div class="campo">
+                <label for="framingMode">Encuadre</label>
+                <select id="framingMode">
+                  <option value="standard">Estándar</option>
+                  <option value="close_room">Consultorio (hasta 2 m)</option>
+                </select>
+              </div>
+              <div class="campo">
+                <label for="renderMode">Visualización</label>
+                <select id="renderMode">
+                  <option value="privacy">Privada</option>
+                  <option value="camera">Cámara + vectores</option>
+                </select>
+              </div>
+              <div class="campo campo-boton">
+                <label>&nbsp;</label>
+                <button id="refreshCameras" type="button">Actualizar cámaras</button>
+              </div>
+            </div>
+
+            <div class="acciones camera-actions">
+              <button id="toggleCam">Encender cámara</button>
+              <button id="startTest">Preparar test</button>
+              <button id="stopTest">Detener test</button>
+              <button id="nuevoTest">Nuevo test</button>
+              <button id="saveCsv">Guardar CSV</button>
+            </div>
+
+            <div id="cameraHelp" class="camera-help"></div>
+
+            <div class="video-upload-block">
+              <div class="video-upload-header">
+                <div>
+                  <p class="section-kicker">Video</p>
+                  <h3>Cargar archivo</h3>
+                </div>
+                <button id="loadVideo" type="button">Cargar video</button>
+                <input id="videoFileInput" type="file" accept="video/*" hidden>
+              </div>
+              <div id="videoHelp" class="video-help"></div>
+            </div>
+          </div>
+
+          <div id="resumen" class="summary-panel">Sin datos todavía.</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+<!--
+ <div class="tabla-wrap">
+    <table id="tablaPacientes">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Paciente</th>
+          <th>Edad</th>
+          <th>Sexo</th>
+          <th>Centro</th>
+          <th>Prueba</th>
+          <th>Duración</th>
+          <th>Muestras</th>
+          <th>Desv. X</th>
+          <th>Ángulo</th>
+          <th>Observaciones</th>
+        </tr>
+      </thead>
+      <tbody id="tablaBody"></tbody>
+    </table>
+  </div>
+-->
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
