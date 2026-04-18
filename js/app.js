@@ -2213,12 +2213,31 @@ function renderPoseFrame(results) {
   }
 }
 
+function syncTestActionButtons() {
+  if (startTestButton) {
+    if (testRunning) {
+      startTestButton.textContent = "Test en curso";
+    } else if (esperandoInicio) {
+      startTestButton.textContent = "Preparando...";
+    } else {
+      startTestButton.textContent = "Preparar test";
+    }
+  }
+
+  if (nuevoTestButton) {
+    nuevoTestButton.textContent = cameraRunning
+      ? "Reiniciar test"
+      : "Nuevo test";
+  }
+}
+
 function updateControls() {
   const patientReady = validatePatientData().ok;
   const cameraModeActive = cameraRunning && sourceMode === "camera";
   startTestButton.disabled = !cameraModeActive || !patientReady;
   nuevoTestButton.disabled = !cameraModeActive;
   stopTestButton.disabled = !cameraModeActive || !testRunning;
+  syncTestActionButtons();
 }
 
 // ---------- Timer ----------
@@ -2269,10 +2288,12 @@ function prepararTest() {
   resetTrigger();
   esperandoInicio = true;
   limpiarResumen();
+  syncTestActionButtons();
 
   timerEl.textContent = "0.0 s";
   if (getPruebaActual() === "tug" || getPruebaActual() === "otros") {
     esperandoInicio = false;
+    syncTestActionButtons();
     setStatus(`La prueba ${getNombrePrueba(getPruebaActual())} todavía no tiene una lógica específica implementada.`);
     return;
   }
@@ -2837,7 +2858,7 @@ function nuevoTest() {
   timerEl.textContent = "0.0 s";
   limpiarResumen();
 
-  setStatus("Sistema listo para nuevo test.");
+  setStatus("Test reiniciado. Presione 'Preparar test' para calibrar y comenzar de nuevo.");
   updateControls();
 }
 
