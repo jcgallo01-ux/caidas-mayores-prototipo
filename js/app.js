@@ -2235,7 +2235,7 @@ function updateControls() {
   const patientReady = validatePatientData().ok;
   const cameraModeActive = cameraRunning && sourceMode === "camera";
   startTestButton.disabled = !cameraModeActive || !patientReady;
-  nuevoTestButton.disabled = !cameraModeActive;
+  nuevoTestButton.disabled = !cameraModeActive || !patientReady;
   stopTestButton.disabled = !cameraModeActive || !testRunning;
   syncTestActionButtons();
 }
