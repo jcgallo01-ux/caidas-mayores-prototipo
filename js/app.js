@@ -30,6 +30,7 @@ let pieActivo = null;
 let baselineFrames = 0;
 let stableStartFrames = 0;
 let startReady = false;
+let readyCameraCentered = false;
 let lastDelta = 0;
 
 let framesElevado = 0;
@@ -2225,7 +2226,7 @@ function syncTestActionButtons() {
   if (startTestButton) {
     if (testRunning) {
       startTestButton.textContent = "Test en curso";
-    } else if (esperandoInicio) {
+    } else if (esperandoInicio && !startReady) {
       startTestButton.textContent = "Preparando...";
     } else {
       startTestButton.textContent = "Preparar test";
@@ -2266,6 +2267,7 @@ function resetTrigger() {
   baselineFrames = 0;
   stableStartFrames = 0;
   startReady = false;
+  readyCameraCentered = false;
   lastDelta = 0;
   framesElevado = 0;
   framesApoyado = 0;
@@ -2315,7 +2317,7 @@ function prepararTest() {
     return;
   }
 
-  setStatus("Preparando medición. Quédese quieto un instante y luego levante un pie.");
+  setStatus("Preparando...");
 }
 
 function iniciarTest(landmarks) {
@@ -2944,6 +2946,13 @@ function procesarTrigger(results) {
     }
 
     startReady = true;
+    syncTestActionButtons();
+    setStatus("Listo, levante un pie");
+    if (!readyCameraCentered) {
+      readyCameraCentered = true;
+      smoothScrollToElement(canvasElement, "center");
+    }
+    return;
   }
 
   // ---------- Inicio ----------
@@ -2961,8 +2970,6 @@ function procesarTrigger(results) {
       pieActivo = pieMasAlto;
       framesElevado = 0;
       iniciarTest(results.poseLandmarks);
-    } else if (baselineFrames >= BASELINE_FRAMES_MIN) {
-      setStatus("Listo, levante un pie");
     }
   }
 
