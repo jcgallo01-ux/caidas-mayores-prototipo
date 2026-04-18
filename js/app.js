@@ -49,6 +49,7 @@ const VISIBILIDAD_MINIMA = 0.6;
 const MIN_TEST_SECONDS = 3;
 const FRAMES_EVENTO = 4;
 const UMBRAL_DIFERENCIA_PIES_INICIO = 0.015;
+const UMBRAL_SEPARACION_PIERNAS = 0.18;
 const UMBRAL_BALANCEO_TRONCO = 0.045;
 const UMBRAL_CAIDA_PELVIS = 0.03;
 const UMBRAL_BRAZOS_ABIERTOS = 1.75;
@@ -91,6 +92,8 @@ function crearAnalisisMonopedia() {
     ladoElevado: null,
     baselineShoulderWidth: null,
     earliestCompensationTime: null,
+    piernaSeparadaDetectada: false,
+    instantePrimeraSeparacion: null,
     eventos: {
       brazosAbiertos: null,
       caidaPelvis: null,
@@ -2581,6 +2584,12 @@ function analizarEstabilidadMonopedia(landmarks) {
     Math.hypot(pieElevado.x - pieApoyo.x, pieElevado.y - pieApoyo.y)
   );
 
+  if (!analisisMonopedia.piernaSeparadaDetectada && contactoPiernas > UMBRAL_SEPARACION_PIERNAS) {
+    analisisMonopedia.piernaSeparadaDetectada = true;
+    analisisMonopedia.instantePrimeraSeparacion = tiempoSegundos;
+    setStatus("Pierna elevada detectada. Mantenga la posicion.");
+  }
+
   actualizarEventoSostenido(
     "brazosAbiertos",
     wristSpan > shoulderWidth * UMBRAL_BRAZOS_ABIERTOS,
@@ -2592,6 +2601,12 @@ function analizarEstabilidadMonopedia(landmarks) {
     trunkAngle > 10 || Math.abs(shoulderMidX - pelvisMidX) > UMBRAL_BALANCEO_TRONCO,
     tiempoSegundos
   );
+
+  if (!analisisMonopedia.piernaSeparadaDetectada) {
+    framesContactoPiernas = 0;
+    instanteInicioContactoPiernas = null;
+    return;
+  }
 
   if (contactoPiernas < UMBRAL_CONTACTO_PIERNAS) {
     framesContactoPiernas += 1;
