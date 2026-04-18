@@ -1304,7 +1304,11 @@ function actualizarEventoSostenido(clave, condicion, tiempoSegundos) {
   }
 }
 
-function getInterpretacionesCompensaciones(eventos) {
+function wasStoppedByLegSupport(motivoFin = "") {
+  return normalizeText(motivoFin).includes("pierna de apoyo");
+}
+
+function getInterpretacionesCompensaciones(eventos, motivoFin = "") {
   const interpretaciones = [];
 
   if (eventos.brazosAbiertos !== null) {
@@ -1331,7 +1335,7 @@ function getInterpretacionesCompensaciones(eventos) {
     );
   }
 
-  if (eventos.apoyoPierna !== null) {
+  if (eventos.apoyoPierna !== null && wasStoppedByLegSupport(motivoFin)) {
     interpretaciones.push(
       `La pierna elevada se apoyó sobre la opuesta a los ${formatSeconds(eventos.apoyoPierna)}: desde el punto de vista técnico el test se detiene en ese instante porque dejó de sostenerse estrictamente sobre un solo pie.`
     );
@@ -1340,14 +1344,14 @@ function getInterpretacionesCompensaciones(eventos) {
   return interpretaciones;
 }
 
-function getNotasCompensacion(eventos, tiempoSegundos) {
+function getNotasCompensacion(eventos, tiempoSegundos, motivoFin = "") {
   const notas = [];
   const tiemposEventos = [
     eventos.brazosAbiertos,
     eventos.caidaPelvis,
     eventos.balanceoTronco,
     eventos.toqueSuelo,
-    eventos.apoyoPierna
+    wasStoppedByLegSupport(motivoFin) ? eventos.apoyoPierna : null
   ].filter((valor) => valor !== null);
   const primerEvento = tiemposEventos.length ? Math.min(...tiemposEventos) : null;
 
@@ -1363,7 +1367,7 @@ function getNotasCompensacion(eventos, tiempoSegundos) {
     }
   }
 
-  if (eventos.apoyoPierna !== null) {
+  if (eventos.apoyoPierna !== null && wasStoppedByLegSupport(motivoFin)) {
     notas.push(
       `El tiempo contabilizado se cerró en ${formatSeconds(
         tiempoSegundos
@@ -1389,8 +1393,8 @@ function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFi
   const nombrePaciente = patientData.nombre || "Paciente";
   const resultado = clasificarRiesgoMonopedia(tiempoSegundos, edad);
   const eventos = analisisMonopedia?.eventos ?? crearAnalisisMonopedia().eventos;
-  const interpretaciones = getInterpretacionesCompensaciones(eventos);
-  const notasCompensacion = getNotasCompensacion(eventos, tiempoSegundos);
+  const interpretaciones = getInterpretacionesCompensaciones(eventos, motivoFin);
+  const notasCompensacion = getNotasCompensacion(eventos, tiempoSegundos, motivoFin);
   const referenciaTexto =
     resultado.referencia.minimoEsperado === null
       ? resultado.referencia.descripcion
@@ -2226,7 +2230,7 @@ function syncTestActionButtons() {
 
   if (nuevoTestButton) {
     nuevoTestButton.textContent = cameraRunning
-      ? "Reiniciar test"
+      ? "Reiniciar"
       : "Nuevo test";
   }
 }
