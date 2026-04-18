@@ -2078,10 +2078,6 @@ function smoothScrollToElement(element, block = "start") {
   window.requestAnimationFrame(() => {
     element.scrollIntoView({ behavior: "smooth", block });
   });
-
-  window.setTimeout(() => {
-    element.scrollIntoView({ behavior: "smooth", block });
-  }, 220);
 }
 
 function renderStandbyScreen(message = "Encendé la cámara para iniciar un nuevo test.") {
@@ -2956,8 +2952,7 @@ function procesarTrigger(results) {
     setStatus("Listo, levante un pie");
     if (!readyCameraCentered) {
       readyCameraCentered = true;
-      smoothScrollToElement(canvasElement, "center");
-      smoothScrollToElement(statusEl, "center");
+      smoothScrollToElement(canvasElement, "nearest");
     }
     return;
   }
