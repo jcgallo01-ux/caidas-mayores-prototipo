@@ -234,7 +234,8 @@ function loadRegistry() {
   patientRegistry = parseStoredRegistry(localStorage.getItem(STORAGE_KEY));
   patientRegistry.patients = patientRegistry.patients.map((patient, index) => ({
     ...patient,
-    patientCode: patient.patientCode || formatPatientCode(index + 1)
+    patientCode: patient.patientCode || formatPatientCode(index + 1),
+    edad: Number.isFinite(Number(patient.edad)) ? Number(patient.edad) : null
   }));
 }
 
@@ -259,8 +260,29 @@ function calculateAgeFromBirthDate(fechaNacimiento) {
   return edad >= 0 ? edad : null;
 }
 
+function getStoredPatientAge(patient) {
+  const edad = Number(patient?.edad);
+  return Number.isFinite(edad) && edad >= 0 ? edad : null;
+}
+
+function getPatientAge(patient) {
+  if (!patient) return null;
+  return calculateAgeFromBirthDate(patient.fechaNacimiento) ?? getStoredPatientAge(patient);
+}
+
 function getEdadPaciente() {
-  return calculateAgeFromBirthDate(fechaNacimientoEl?.value || "");
+  const edadPorFecha = calculateAgeFromBirthDate(fechaNacimientoEl?.value || "");
+  if (edadPorFecha !== null) return edadPorFecha;
+
+  const selectedPatient = getSelectedPatient();
+  if (!selectedPatient) return null;
+
+  const ageFallback = getStoredPatientAge(selectedPatient);
+  const sameName = normalizeText(selectedPatient.nombre) === normalizeText(nombrePacienteEl?.value || "");
+  const sameIdentifier = normalizeText(selectedPatient.identificador) === normalizeText(patientIdentifierEl?.value || "");
+  const sameCenter = normalizeText(selectedPatient.centro) === normalizeText(centroEl?.value || "");
+
+  return sameName && sameIdentifier && sameCenter ? ageFallback : null;
 }
 
 function updateCalculatedAge() {
@@ -292,14 +314,14 @@ function validatePatientData() {
     return { ok: false, message: "Antes de iniciar el test, cargue el nombre del paciente." };
   }
 
-  if (!patient.fechaNacimiento) {
+  if (!patient.fechaNacimiento && patient.edad === null) {
     return {
       ok: false,
-      message: "Antes de iniciar el test, cargue la fecha de nacimiento para calcular la edad."
+      message: "Antes de iniciar el test, cargue la fecha de nacimiento o importe una edad válida para el paciente."
     };
   }
 
-  if (patient.edad === null) {
+  if (patient.fechaNacimiento && patient.edad === null) {
     return {
       ok: false,
       message: "La fecha de nacimiento no es válida. Revísela antes de iniciar el test."
@@ -340,7 +362,7 @@ function findMatchingPatient(patientData) {
   const fechaNacimiento = patientData.fechaNacimiento || "";
   const patientCode = patientData.patientCode || patientData.codigoPaciente || "";
   const identificador = patientData.identificador || patientData.documento || patientData.dni || patientData.hc || "";
-  const edad = patientData.edad ?? null;
+  const edad = Number.isFinite(Number(patientData.edad)) ? Number(patientData.edad) : null;
   const sexo = patientData.sexo || "";
   const centro = normalizeText(patientData.centro || "");
 
@@ -374,7 +396,7 @@ function findMatchingPatient(patientData) {
   if (candidates.length !== 1) return null;
 
   const candidate = candidates[0];
-  const candidateAge = calculateAgeFromBirthDate(candidate.fechaNacimiento);
+  const candidateAge = getPatientAge(candidate);
   const ageMatches = edad !== null && candidateAge !== null ? Number(candidateAge) === Number(edad) : false;
   const sexMatches = sexo && candidate.sexo ? sexo === candidate.sexo : false;
   const centerMatches = centro && candidate.centro ? normalizeText(candidate.centro) === centro : false;
@@ -385,12 +407,16 @@ function findMatchingPatient(patientData) {
 
 function upsertPatient(patientData) {
   const existingPatient = findMatchingPatient(patientData);
+  const edad = Number.isFinite(Number(patientData.edad))
+    ? Number(patientData.edad)
+    : getPatientAge(existingPatient);
 
   const mergedPatient = {
     id: existingPatient?.id || patientData.id || createId("patient"),
     patientCode: existingPatient?.patientCode || patientData.patientCode || getNextPatientCode(),
     nombre: patientData.nombre,
     fechaNacimiento: patientData.fechaNacimiento || "",
+    edad,
     identificador: patientData.identificador || existingPatient?.identificador || "",
     sexo: patientData.sexo || "",
     centro: patientData.centro || "",
@@ -635,7 +661,7 @@ function renderPatientSelect() {
       (!searchCenter || normalizeText(patient.centro).includes(searchCenter))
     ))
     .forEach((patient) => {
-      const edad = calculateAgeFromBirthDate(patient.fechaNacimiento);
+      const edad = getPatientAge(patient);
       const identificadorLabel = patient.identificador ? ` | ${patient.identificador}` : "";
       const label = `${patient.patientCode || "Sin ID"}${identificadorLabel} | ${patient.nombre}${edad !== null ? ` (${edad} años)` : ""}`;
       const selected = patient.id === currentPatientId ? " selected" : "";
@@ -933,36 +959,167 @@ function parseCsv(text) {
   });
 }
 
+function getCsvValue(row, aliases = []) {
+  for (const alias of aliases) {
+    const value = row[normalizeText(alias)];
+    if (value !== undefined && String(value).trim() !== "") {
+      return String(value).trim();
+    }
+  }
+
+  return "";
+}
+
+function parseImportedNumber(value) {
+  if (value === null || value === undefined) return null;
+
+  const normalized = String(value).trim().replace(",", ".");
+  if (!normalized) return null;
+
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : null;
+}
+
+function parseImportedDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const cleaned = raw.split(",")[0].trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) return cleaned;
+
+  const match = cleaned.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (!match) return "";
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  let year = Number(match[3]);
+
+  if (year < 100) {
+    year += year >= 30 ? 1900 : 2000;
+  }
+
+  if (!day || !month || !year) return "";
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function normalizeImportedSex(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) return "";
+  if (["f", "femenino", "mujer", "female"].includes(normalized)) return "F";
+  if (["m", "masculino", "varon", "varón", "hombre", "male"].includes(normalized)) return "M";
+  return String(value || "").trim().toUpperCase().slice(0, 1);
+}
+
+function extractPatientDataFromRow(row) {
+  const nombre = getCsvValue(row, [
+    "paciente",
+    "nombre",
+    "nombre y apellido",
+    "nombre completo",
+    "apellido y nombre",
+    "apellidos y nombres"
+  ]);
+  const fechaNacimiento = parseImportedDate(getCsvValue(row, [
+    "fecha_nacimiento",
+    "fecha de nacimiento",
+    "nacimiento",
+    "fecha nac",
+    "fecnac"
+  ]));
+  const edad = parseImportedNumber(getCsvValue(row, ["edad", "age"]));
+  const sexo = normalizeImportedSex(getCsvValue(row, ["sexo", "genero", "género"]));
+  const centro = getCsvValue(row, ["centro", "lugar", "sede", "institucion", "institución"]);
+  const observaciones = getCsvValue(row, ["observaciones", "comentarios", "notas"]);
+  const patientCode = getCsvValue(row, ["patient_code", "codigo_paciente", "codigo paciente", "id_paciente"]);
+  const identificador = getCsvValue(row, [
+    "patient_identifier",
+    "identificador",
+    "documento",
+    "dni",
+    "hc",
+    "historia clinica",
+    "historia clínica"
+  ]);
+
+  return {
+    id: getCsvValue(row, ["patient_id", "id"]),
+    patientCode,
+    identificador,
+    nombre,
+    fechaNacimiento,
+    edad,
+    sexo,
+    centro,
+    observaciones
+  };
+}
+
+function rowLooksLikeTest(row) {
+  const prueba = getCsvValue(row, ["prueba"]);
+  const tiempo = getCsvValue(row, ["tiempo_segundos", "tiempo", "duracion", "duración"]);
+  const resultado = getCsvValue(row, ["resultado_nivel", "resultado_color", "resultado_titulo", "valido", "valido"]);
+  return Boolean(prueba || tiempo || resultado);
+}
+
+function importPatientsFromRows(rows) {
+  let imported = 0;
+  let updated = 0;
+  let skipped = 0;
+  let lastPatientId = null;
+
+  rows.forEach((row) => {
+    const patientData = extractPatientDataFromRow(row);
+    if (!patientData.nombre.trim()) {
+      skipped += 1;
+      return;
+    }
+
+    const existingPatient = findMatchingPatient(patientData);
+    const patient = upsertPatient(patientData);
+    lastPatientId = patient.id;
+
+    if (existingPatient) {
+      updated += 1;
+    } else {
+      imported += 1;
+    }
+  });
+
+  if (lastPatientId) {
+    currentPatientId = lastPatientId;
+    fillPatientForm(findPatientById(lastPatientId));
+  }
+
+  saveRegistry();
+  renderPatientSelect();
+  renderPatientHistory();
+  renderPatientHelp(
+    `Importación de pacientes finalizada. Nuevos: ${imported}. Actualizados: ${updated}. Omitidos: ${skipped}.`
+  );
+  updateControls();
+  setStatus(`Pacientes importados: ${imported} nuevos, ${updated} actualizados.`);
+}
+
 function importTestsFromRows(rows) {
   let imported = 0;
   let ambiguous = 0;
+  let lastPatientId = null;
 
   rows.forEach((row) => {
-    const nombre =
-      row.paciente ||
-      row.nombre ||
-      row["nombre y apellido"] ||
-      "";
+    const patientData = extractPatientDataFromRow(row);
+    const nombre = patientData.nombre;
 
     if (!nombre.trim()) return;
 
-    const fechaNacimiento = row.fecha_nacimiento || "";
-    const sexo = row.sexo || "";
-    const centro = row.centro || row.lugar || "";
-    const observaciones = row.observaciones || "";
-    const edadImportada = Number(row.edad);
-    const edad = Number.isFinite(edadImportada) ? edadImportada : calculateAgeFromBirthDate(fechaNacimiento);
-    const patientCode = row.patient_code || row.codigo_paciente || row.id_paciente || "";
-    const identificador = row.patient_identifier || row.identificador || row.documento || row.dni || row.hc || "";
     const beforeMatch = findMatchingPatient({
-      id: row.patient_id || "",
-      patientCode,
-      identificador,
+      id: patientData.id || "",
+      patientCode: patientData.patientCode,
+      identificador: patientData.identificador,
       nombre: nombre.trim(),
-      fechaNacimiento,
-      edad,
-      sexo,
-      centro
+      fechaNacimiento: patientData.fechaNacimiento,
+      edad: patientData.edad,
+      sexo: patientData.sexo,
+      centro: patientData.centro
     });
     const homonymCandidates = patientRegistry.patients.filter(
       (patient) => normalizeText(patient.nombre) === normalizeText(nombre.trim())
@@ -972,20 +1129,16 @@ function importTestsFromRows(rows) {
     }
 
     const patient = upsertPatient({
-      id: row.patient_id || "",
-      patientCode,
-      identificador,
-      nombre: nombre.trim(),
-      fechaNacimiento,
-      edad,
-      sexo,
-      centro,
-      observaciones
+      ...patientData,
+      nombre: nombre.trim()
     });
+    lastPatientId = patient.id;
 
-    const prueba = row.prueba || "monopedia";
-    const tiempoImportado = Number(row.tiempo_segundos || row.tiempo || 0);
-    const tiempoSegundos = Number.isFinite(tiempoImportado) ? tiempoImportado : 0;
+    const prueba = getCsvValue(row, ["prueba"]) || "monopedia";
+    const tiempoSegundos = parseImportedNumber(
+      getCsvValue(row, ["tiempo_segundos", "tiempo", "duracion", "duración"])
+    ) ?? 0;
+    const edad = getPatientAge(patient);
     const resultado = getResultadoSegunPrueba(prueba, tiempoSegundos, edad);
 
     patientRegistry.tests.push({
@@ -996,23 +1149,27 @@ function importTestsFromRows(rows) {
       patientName: patient.nombre,
       fechaNacimiento: patient.fechaNacimiento,
       edad,
-      sexo,
-      centro,
+      sexo: patient.sexo || patientData.sexo || "",
+      centro: patient.centro || patientData.centro || "",
       prueba,
-      observaciones,
+      observaciones: patientData.observaciones || "",
       tiempoSegundos,
-      resultadoNivel: row.resultado_nivel || resultado.nivel,
-      resultadoColor: row.resultado_color || resultado.color,
-      resultadoTitulo: row.resultado_titulo || resultado.titulo,
-      resultadoDetalle: row.resultado_detalle || resultado.detalle,
-      motivoFin: row.motivo_fin || "",
-      timestamp: row.timestamp || row.fecha || new Date().toISOString()
+      resultadoNivel: getCsvValue(row, ["resultado_nivel"]) || resultado.nivel,
+      resultadoColor: getCsvValue(row, ["resultado_color"]) || resultado.color,
+      resultadoTitulo: getCsvValue(row, ["resultado_titulo"]) || resultado.titulo,
+      resultadoDetalle: getCsvValue(row, ["resultado_detalle"]) || resultado.detalle,
+      motivoFin: getCsvValue(row, ["motivo_fin", "motivo"]) || "",
+      timestamp: getCsvValue(row, ["timestamp", "fecha"]) || new Date().toISOString()
     });
 
     imported += 1;
   });
 
   saveRegistry();
+  if (lastPatientId) {
+    currentPatientId = lastPatientId;
+    fillPatientForm(findPatientById(lastPatientId));
+  }
   renderPatientSelect();
   renderPatientHistory();
   setStatus(
@@ -1276,7 +1433,8 @@ function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFi
   `;
 
   resumenEl.style.display = "block";
-  resumenEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  smoothScrollToElement(resumenEl, "start");
+  setStatus(`Informe generado: ${resultado.titulo}. Tiempo registrado ${formatSeconds(tiempoSegundos)}.`);
 
   if (patient) {
     saveCompletedTestRecord({
@@ -1342,7 +1500,8 @@ function renderResultadoSitToStand(patient, patientData, tiempoSegundos, motivoF
   `;
 
   resumenEl.style.display = "block";
-  resumenEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  smoothScrollToElement(resumenEl, "start");
+  setStatus(`Informe generado: ${resultado.titulo}. Tiempo registrado ${formatSeconds(tiempoSegundos)}.`);
 
   if (patient) {
     saveCompletedTestRecord({
@@ -3104,7 +3263,11 @@ csvFileInputEl?.addEventListener("change", async (event) => {
   try {
     const text = await file.text();
     const rows = parseCsv(text);
-    importTestsFromRows(rows);
+    if (rows.some(rowLooksLikeTest)) {
+      importTestsFromRows(rows);
+    } else {
+      importPatientsFromRows(rows);
+    }
   } catch (error) {
     console.error(error);
     setStatus("No se pudo importar el CSV seleccionado.");
