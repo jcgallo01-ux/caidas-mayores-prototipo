@@ -29,6 +29,7 @@ let triggerActivo = false;
 let pieActivo = null;
 let baselineFrames = 0;
 let stableStartFrames = 0;
+let startReady = false;
 let lastDelta = 0;
 
 let framesElevado = 0;
@@ -2264,6 +2265,7 @@ function resetTrigger() {
   pieActivo = null;
   baselineFrames = 0;
   stableStartFrames = 0;
+  startReady = false;
   lastDelta = 0;
   framesElevado = 0;
   framesApoyado = 0;
@@ -2925,7 +2927,7 @@ function procesarTrigger(results) {
     baselineFootY = (baselineFootY * 0.98) + (footY * 0.02);
   }
 
-  if (esperandoInicio && !triggerActivo) {
+  if (esperandoInicio && !triggerActivo && !startReady) {
     const posturaEstable =
       Math.abs(delta) < UMBRAL_MOVIMIENTO_PREVIO_INICIO &&
       diferenciaEntrePies < UMBRAL_DIFERENCIA_PIES_INICIO;
@@ -2940,6 +2942,8 @@ function procesarTrigger(results) {
       setStatus("Quédese quieto");
       return;
     }
+
+    startReady = true;
   }
 
   // ---------- Inicio ----------
@@ -2953,6 +2957,7 @@ function procesarTrigger(results) {
     if (framesElevado >= FRAMES_INICIO) {
       triggerActivo = true;
       esperandoInicio = false;
+      startReady = false;
       pieActivo = pieMasAlto;
       framesElevado = 0;
       iniciarTest(results.poseLandmarks);
