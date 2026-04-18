@@ -41,14 +41,15 @@ let analisisSitToStand = null;
 
 // Ajustes calibrables
 const UMBRAL_INICIO = 0.018;
-const UMBRAL_FIN = 0.012;
+const UMBRAL_FIN = 0.018;
 const FRAMES_INICIO = 3;
-const FRAMES_FIN = 6;
+const FRAMES_FIN = 4;
 const BASELINE_FRAMES_MIN = 12;
 const VISIBILIDAD_MINIMA = 0.6;
 const MIN_TEST_SECONDS = 3;
 const FRAMES_EVENTO = 4;
 const UMBRAL_DIFERENCIA_PIES_INICIO = 0.015;
+const UMBRAL_DIFERENCIA_PIES_FIN = 0.02;
 const UMBRAL_SEPARACION_PIERNAS = 0.18;
 const UMBRAL_BALANCEO_TRONCO = 0.045;
 const UMBRAL_CAIDA_PELVIS = 0.03;
@@ -92,6 +93,7 @@ function crearAnalisisMonopedia() {
     ladoElevado: null,
     baselineShoulderWidth: null,
     earliestCompensationTime: null,
+    maxDeltaPieActivo: 0,
     piernaSeparadaDetectada: false,
     instantePrimeraSeparacion: null,
     eventos: {
@@ -2922,15 +2924,25 @@ function procesarTrigger(results) {
       pieActivo === "left"
         ? deltaIzquierdo
         : pieActivo === "right"
-          ? deltaDerecho
-          : Math.min(deltaIzquierdo, deltaDerecho);
+        ? deltaDerecho
+        : Math.min(deltaIzquierdo, deltaDerecho);
+    analisisMonopedia.maxDeltaPieActivo = Math.max(
+      analisisMonopedia.maxDeltaPieActivo || 0,
+      deltaPieActivo
+    );
+    const umbralRetornoDinamico = Math.max(
+      UMBRAL_FIN,
+      (analisisMonopedia.maxDeltaPieActivo || 0) * 0.45
+    );
     const ambosPiesApoyados =
       deltaIzquierdo < UMBRAL_FIN && deltaDerecho < UMBRAL_FIN;
+    const piesVolvieronAJuntarse = diferenciaEntrePies < UMBRAL_DIFERENCIA_PIES_FIN;
+    const pieActivoVolvio = deltaPieActivo < umbralRetornoDinamico;
 
     // evitar corte inmediato
     if (tiempo < MIN_TEST_SECONDS) return;
 
-    if (deltaPieActivo < UMBRAL_FIN || ambosPiesApoyados) {
+    if ((pieActivoVolvio && piesVolvieronAJuntarse) || ambosPiesApoyados) {
       framesApoyado++;
       if (instanteInicioApoyo === null) {
         instanteInicioApoyo = tiempo;
