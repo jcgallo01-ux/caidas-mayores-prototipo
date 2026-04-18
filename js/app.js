@@ -40,14 +40,15 @@ let analisisVideoCaida = null;
 let analisisSitToStand = null;
 
 // Ajustes calibrables
-const UMBRAL_INICIO = 0.025;
+const UMBRAL_INICIO = 0.018;
 const UMBRAL_FIN = 0.012;
-const FRAMES_INICIO = 4;
+const FRAMES_INICIO = 3;
 const FRAMES_FIN = 6;
 const BASELINE_FRAMES_MIN = 12;
 const VISIBILIDAD_MINIMA = 0.6;
 const MIN_TEST_SECONDS = 3;
 const FRAMES_EVENTO = 4;
+const UMBRAL_DIFERENCIA_PIES_INICIO = 0.015;
 const UMBRAL_BALANCEO_TRONCO = 0.045;
 const UMBRAL_CAIDA_PELVIS = 0.03;
 const UMBRAL_BRAZOS_ABIERTOS = 1.75;
@@ -2871,6 +2872,7 @@ function procesarTrigger(results) {
   }
 
   const delta = baselineFootY - footY;
+  const diferenciaEntrePies = Math.abs(leftFoot.y - rightFoot.y);
   lastDelta = delta;
 
   if (esperandoInicio) {
@@ -2879,7 +2881,7 @@ function procesarTrigger(results) {
 
   // ---------- Inicio ----------
   if (esperandoInicio && !triggerActivo) {
-    if (delta > UMBRAL_INICIO) {
+    if (delta > UMBRAL_INICIO && diferenciaEntrePies > UMBRAL_DIFERENCIA_PIES_INICIO) {
       framesElevado++;
     } else {
       framesElevado = 0;
@@ -2891,6 +2893,8 @@ function procesarTrigger(results) {
       pieActivo = pieMasAlto;
       framesElevado = 0;
       iniciarTest(results.poseLandmarks);
+    } else if (baselineFrames >= BASELINE_FRAMES_MIN) {
+      setStatus("Calibración lista. Levante un pie para iniciar el cronómetro.");
     }
   }
 
