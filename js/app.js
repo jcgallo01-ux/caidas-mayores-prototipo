@@ -2078,6 +2078,10 @@ function smoothScrollToElement(element, block = "start") {
   window.requestAnimationFrame(() => {
     element.scrollIntoView({ behavior: "smooth", block });
   });
+
+  window.setTimeout(() => {
+    element.scrollIntoView({ behavior: "smooth", block });
+  }, 220);
 }
 
 function renderStandbyScreen(message = "Encendé la cámara para iniciar un nuevo test.") {
@@ -2226,6 +2230,8 @@ function syncTestActionButtons() {
   if (startTestButton) {
     if (testRunning) {
       startTestButton.textContent = "Test en curso";
+    } else if (startReady) {
+      startTestButton.textContent = "Listo";
     } else if (esperandoInicio && !startReady) {
       startTestButton.textContent = "Preparando...";
     } else {
@@ -2951,6 +2957,7 @@ function procesarTrigger(results) {
     if (!readyCameraCentered) {
       readyCameraCentered = true;
       smoothScrollToElement(canvasElement, "center");
+      smoothScrollToElement(statusEl, "center");
     }
     return;
   }
@@ -3049,14 +3056,23 @@ pose.onResults((results) => {
   }
 
   // ---------- CRONÓMETRO ----------
+  const timerBoxWidth = Math.min(280, canvasElement.width * 0.38);
+  const timerBoxHeight = Math.min(88, canvasElement.height * 0.16);
+  const timerFontSize = Math.max(42, Math.min(58, canvasElement.width * 0.055));
+
   canvasCtx.textAlign = "center";
 
   canvasCtx.fillStyle = "rgba(0,0,0,0.3)";
-  canvasCtx.fillRect(canvasElement.width / 2 - 100, 20, 200, 60);
+  canvasCtx.fillRect(
+    canvasElement.width / 2 - timerBoxWidth / 2,
+    20,
+    timerBoxWidth,
+    timerBoxHeight
+  );
 
   canvasCtx.fillStyle = "white";
-  canvasCtx.font = "bold 42px Arial";
-  canvasCtx.fillText(timerEl.textContent, canvasElement.width / 2, 60);
+  canvasCtx.font = `bold ${timerFontSize}px Arial`;
+  canvasCtx.fillText(timerEl.textContent, canvasElement.width / 2, 20 + timerBoxHeight * 0.68);
 });
 
 // ---------- Loop estable ----------
