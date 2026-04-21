@@ -189,6 +189,7 @@ const csvFileInputEl = document.getElementById("csvFileInput");
 const videoFileInputEl = document.getElementById("videoFileInput");
 const patientHelpEl = document.getElementById("patientHelp");
 const historyPanelEl = document.getElementById("historyPanel");
+const testPhaseHelpEl = document.getElementById("testPhaseHelp");
 const toggleSidebarButton = document.getElementById("toggleSidebar");
 
 const statusEl = document.getElementById("status");
@@ -1778,10 +1779,28 @@ function syncSidebarButtonLabel() {
     : "Ocultar panel lateral";
 }
 
-function applySidebarPreference() {
-  const collapsed = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
+function isCompactViewport() {
+  return window.matchMedia?.("(max-width: 760px)")?.matches || false;
+}
+
+function setSidebarCollapsed(collapsed, persist = true) {
   document.body.classList.toggle("sidebar-collapsed", collapsed);
+  if (persist) {
+    localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? "true" : "false");
+  }
   syncSidebarButtonLabel();
+}
+
+function applySidebarPreference() {
+  const stored = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
+  const collapsed = stored === null ? isCompactViewport() : stored === "true";
+  setSidebarCollapsed(collapsed, false);
+}
+
+function collapseSidebarForMobileWork() {
+  if (!isCompactViewport()) return;
+  if (document.body.classList.contains("sidebar-collapsed")) return;
+  setSidebarCollapsed(true, false);
 }
 
 function syncRenderModeControl() {
@@ -2295,6 +2314,50 @@ function updateControls() {
   nuevoTestButton.disabled = !cameraModeActive || !patientReady;
   stopTestButton.disabled = !cameraModeActive || !testRunning;
   syncTestActionButtons();
+  renderTestPhaseHelp();
+}
+
+function renderTestPhaseHelp() {
+  if (!testPhaseHelpEl) return;
+
+  const patientReady = validatePatientData().ok;
+  const pruebaActual = getPruebaActual();
+
+  if (!cameraRunning || sourceMode !== "camera") {
+    testPhaseHelpEl.textContent = "Encienda la camara para preparar la prueba.";
+    return;
+  }
+
+  if (!patientReady) {
+    testPhaseHelpEl.textContent = "Complete paciente y fecha de nacimiento antes de iniciar.";
+    return;
+  }
+
+  if (testRunning) {
+    testPhaseHelpEl.textContent =
+      pruebaActual === "sit_to_stand"
+        ? "Test en curso. Mantenga al paciente centrado."
+        : "Test en curso. Sostenga la posicion hasta el cierre.";
+    return;
+  }
+
+  if (esperandoInicio && startReady) {
+    testPhaseHelpEl.textContent =
+      pruebaActual === "sit_to_stand"
+        ? "Listo. Inicie el movimiento."
+        : "Listo. Levante un pie.";
+    return;
+  }
+
+  if (esperandoInicio) {
+    testPhaseHelpEl.textContent =
+      pruebaActual === "sit_to_stand"
+        ? "Preparando. Ubique al paciente sentado y quieto."
+        : "Preparando. Mire la camara y quedese quieto.";
+    return;
+  }
+
+  testPhaseHelpEl.textContent = "Presione Preparar test para comenzar.";
 }
 
 // ---------- Timer ----------
@@ -3376,9 +3439,7 @@ refreshCamerasButton?.addEventListener("click", async () => {
 
 toggleSidebarButton?.addEventListener("click", () => {
   const collapsed = !document.body.classList.contains("sidebar-collapsed");
-  document.body.classList.toggle("sidebar-collapsed", collapsed);
-  localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? "true" : "false");
-  syncSidebarButtonLabel();
+  setSidebarCollapsed(collapsed);
 });
 
 patientSelectEl?.addEventListener("change", () => {
@@ -3394,6 +3455,7 @@ patientSelectEl?.addEventListener("change", () => {
   renderPatientHelp();
   renderPatientHistory();
   updateControls();
+  collapseSidebarForMobileWork();
 });
 
 newPatientButton?.addEventListener("click", () => {
@@ -3401,6 +3463,7 @@ newPatientButton?.addEventListener("click", () => {
   clearPatientForm();
   centroEl.value = currentCentro;
   setStatus("Formulario listo para cargar un nuevo paciente.");
+  collapseSidebarForMobileWork();
 });
 
 importCsvButton?.addEventListener("click", () => {
