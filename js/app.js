@@ -272,6 +272,51 @@ function calculateAgeFromBirthDate(fechaNacimiento) {
   return edad >= 0 ? edad : null;
 }
 
+function parseFlexibleBirthDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  const normalized = raw.replace(/\./g, "/").replace(/-/g, "/");
+  const match = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (!match) return "";
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  let year = Number(match[3]);
+
+  if (year < 100) {
+    year += year >= 30 ? 1900 : 2000;
+  }
+
+  if (!day || !month || !year || month > 12 || day > 31) return "";
+
+  const isoDate = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const parsedDate = new Date(`${isoDate}T12:00:00`);
+
+  if (
+    Number.isNaN(parsedDate.getTime()) ||
+    parsedDate.getFullYear() !== year ||
+    parsedDate.getMonth() + 1 !== month ||
+    parsedDate.getDate() !== day
+  ) {
+    return "";
+  }
+
+  return isoDate;
+}
+
+function formatBirthDateForDisplay(fechaNacimiento) {
+  const isoDate = parseFlexibleBirthDate(fechaNacimiento);
+  if (!isoDate) return String(fechaNacimiento || "").trim();
+
+  const [year, month, day] = isoDate.split("-");
+  return `${day}/${month}/${year}`;
+}
+
 function getStoredPatientAge(patient) {
   const edad = Number(patient?.edad);
   return Number.isFinite(edad) && edad >= 0 ? edad : null;
@@ -283,7 +328,7 @@ function getPatientAge(patient) {
 }
 
 function getEdadPaciente() {
-  const edadPorFecha = calculateAgeFromBirthDate(fechaNacimientoEl?.value || "");
+  const edadPorFecha = calculateAgeFromBirthDate(parseFlexibleBirthDate(fechaNacimientoEl?.value || ""));
   if (edadPorFecha !== null) return edadPorFecha;
 
   const selectedPatient = getSelectedPatient();
@@ -306,11 +351,12 @@ function updateCalculatedAge() {
 
 function getPatientPayloadFromForm() {
   const selectedPatient = getSelectedPatient();
+  const fechaNacimiento = parseFlexibleBirthDate(fechaNacimientoEl?.value || "");
   return {
     id: currentPatientId,
     patientCode: patientCodeEl?.value || selectedPatient?.patientCode || "",
     nombre: nombrePacienteEl?.value?.trim() || "",
-    fechaNacimiento: fechaNacimientoEl?.value || "",
+    fechaNacimiento,
     identificador: patientIdentifierEl?.value?.trim() || selectedPatient?.identificador || "",
     edad: getEdadPaciente(),
     sexo: sexoPacienteEl?.value || "",
@@ -602,7 +648,7 @@ function fillPatientForm(patient) {
   currentPatientId = patient.id;
   if (patientCodeEl) patientCodeEl.value = patient.patientCode || "";
   nombrePacienteEl.value = patient.nombre || "";
-  fechaNacimientoEl.value = patient.fechaNacimiento || "";
+  fechaNacimientoEl.value = formatBirthDateForDisplay(patient.fechaNacimiento || "");
   if (patientIdentifierEl) patientIdentifierEl.value = patient.identificador || "";
   sexoPacienteEl.value = patient.sexo || "";
   centroEl.value = patient.centro || centroEl.value || "";
@@ -995,23 +1041,7 @@ function parseImportedNumber(value) {
 function parseImportedDate(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
-
-  const cleaned = raw.split(",")[0].trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) return cleaned;
-
-  const match = cleaned.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-  if (!match) return "";
-
-  const day = Number(match[1]);
-  const month = Number(match[2]);
-  let year = Number(match[3]);
-
-  if (year < 100) {
-    year += year >= 30 ? 1900 : 2000;
-  }
-
-  if (!day || !month || !year) return "";
-  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return parseFlexibleBirthDate(raw.split(",")[0].trim());
 }
 
 function normalizeImportedSex(value) {
@@ -3488,6 +3518,16 @@ reviewResultButton?.addEventListener("click", () => {
     renderPatientHelp();
     updateControls();
   });
+});
+
+fechaNacimientoEl?.addEventListener("blur", () => {
+  const normalizedDate = parseFlexibleBirthDate(fechaNacimientoEl.value || "");
+  if (normalizedDate) {
+    fechaNacimientoEl.value = formatBirthDateForDisplay(normalizedDate);
+  }
+  updateCalculatedAge();
+  renderPatientHelp();
+  updateControls();
 });
 
 startTestButton.onclick = prepararTest;
