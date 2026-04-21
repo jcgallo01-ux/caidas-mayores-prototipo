@@ -193,6 +193,7 @@ const toggleSidebarButton = document.getElementById("toggleSidebar");
 
 const statusEl = document.getElementById("status");
 const timerEl = document.getElementById("timer");
+const reviewResultButton = document.getElementById("reviewResult");
 const resumenEl = document.getElementById("resumen");
 const patientCodeEl = document.getElementById("patientCode");
 const nombrePacienteEl = document.getElementById("nombrePaciente");
@@ -1279,6 +1280,7 @@ function limpiarResumen() {
   if (!resumenEl) return;
   resumenEl.innerHTML = "Sin datos todavía.";
   resumenEl.style.display = "none";
+  updateReviewResultButton();
 }
 
 function registrarEventoAnalisis(clave, tiempoSegundos) {
@@ -1389,6 +1391,18 @@ function saveCompletedTestRecord(record) {
   saveRegistry();
   renderPatientSelect();
   renderPatientHistory();
+  updateReviewResultButton();
+}
+
+function updateReviewResultButton() {
+  if (!reviewResultButton) return;
+
+  const hasRenderedSummary =
+    resumenEl &&
+    resumenEl.style.display !== "none" &&
+    normalizeText(resumenEl.textContent || "") !== "sin datos todavia.";
+
+  reviewResultButton.hidden = !(lastCompletedTestRecord || hasRenderedSummary);
 }
 
 function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFin = null) {
@@ -1450,6 +1464,7 @@ function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFi
   resumenEl.style.display = "block";
   smoothScrollToElement(resumenEl, "start");
   setStatus(`Informe generado: ${resultado.titulo}. Tiempo registrado ${formatSeconds(tiempoSegundos)}.`);
+  updateReviewResultButton();
 
   if (patient) {
     saveCompletedTestRecord({
@@ -1517,6 +1532,7 @@ function renderResultadoSitToStand(patient, patientData, tiempoSegundos, motivoF
   resumenEl.style.display = "block";
   smoothScrollToElement(resumenEl, "start");
   setStatus(`Informe generado: ${resultado.titulo}. Tiempo registrado ${formatSeconds(tiempoSegundos)}.`);
+  updateReviewResultButton();
 
   if (patient) {
     saveCompletedTestRecord({
@@ -2376,6 +2392,9 @@ function detenerTest(opciones = {}) {
   if (tiempoFinal > 0) {
     timerEl.textContent = formatSeconds(tiempoFinal);
     renderResultadoFinal(tiempoFinal, opciones.motivoFin ?? null, opciones.prueba || getPruebaActual());
+    if (sourceMode === "camera" && cameraRunning) {
+      stopCamera({ keepStatus: true, preserveSummary: true });
+    }
   }
   updateControls();
 }
@@ -3221,7 +3240,7 @@ async function startVideoAnalysis(file) {
 }
 
 function stopCamera(options = {}) {
-  const { keepStatus = false } = options;
+  const { keepStatus = false, preserveSummary = false } = options;
   cameraRunning = false;
   processing = false;
   testRunning = false;
@@ -3247,13 +3266,19 @@ function stopCamera(options = {}) {
     uploadedVideoUrl = null;
   }
   timerEl.textContent = "0.0 s";
-  limpiarResumen();
+  if (!preserveSummary) {
+    limpiarResumen();
+  }
   toggleButton.textContent = "Encender cámara";
   sourceMode = "camera";
   syncSourceModeUi();
   analisisVideoCaida = null;
   updateVideoHelp();
-  renderStandbyScreen();
+  renderStandbyScreen(
+    preserveSummary
+      ? "Cámara apagada. Use 'Ver informe completo' para revisar el resultado."
+      : undefined
+  );
 
   if (!keepStatus) {
     setStatus("Cámara apagada.");
@@ -3440,6 +3465,10 @@ videoElement?.addEventListener("ended", () => {
 
 saveCsvButton?.addEventListener("click", downloadCsv);
 
+reviewResultButton?.addEventListener("click", () => {
+  smoothScrollToElement(resumenEl, "start");
+});
+
 [nombrePacienteEl, fechaNacimientoEl, patientIdentifierEl, sexoPacienteEl, centroEl, observacionesEl].forEach((field) => {
   field?.addEventListener("input", () => {
     if (field === fechaNacimientoEl) {
@@ -3487,4 +3516,5 @@ updateVideoHelp();
 renderPatientHelp();
 applySidebarPreference();
 refreshCameraDevices();
+updateReviewResultButton();
 setStatus("Complete paciente o encienda cámara para empezar.");
