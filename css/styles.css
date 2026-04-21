@@ -435,6 +435,22 @@ table td {
   margin-bottom: 18px;
 }
 
+.status-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: -6px 0 14px 0;
+}
+
+.review-button[hidden] {
+  display: none;
+}
+
+.review-button {
+  min-height: 40px;
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
 .status-card,
 .timer-card {
   display: flex;
