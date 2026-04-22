@@ -244,6 +244,7 @@ button:disabled {
 .camera-help,
 .video-help,
 .patient-help,
+.test-phase-help,
 .history-panel,
 #resumen {
   text-align: left;
@@ -251,7 +252,8 @@ button:disabled {
 
 .camera-help,
 .video-help,
-.patient-help {
+.patient-help,
+.test-phase-help {
   padding: 14px 16px;
   border-radius: 18px;
   line-height: 1.55;
@@ -303,6 +305,13 @@ button:disabled {
   color: #664a00;
   background: rgba(250, 204, 21, 0.12);
   border: 1px solid rgba(214, 161, 0, 0.18);
+}
+
+.test-phase-help {
+  margin-top: 16px;
+  color: #0d5a54;
+  background: rgba(15, 118, 110, 0.1);
+  border: 1px solid rgba(15, 118, 110, 0.18);
 }
 
 .history-panel {
@@ -425,6 +434,10 @@ table td {
 
 .camera-actions {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.patient-actions {
+  margin-top: 4px;
 }
 
 .status-row {
