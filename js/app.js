@@ -43,17 +43,17 @@ let analisisVideoCaida = null;
 let analisisSitToStand = null;
 
 // Ajustes calibrables
-const UMBRAL_INICIO = 0.018;
-const UMBRAL_FIN = 0.018;
-const FRAMES_INICIO = 3;
-const FRAMES_FIN = 4;
+const UMBRAL_INICIO = 0.012;
+const UMBRAL_FIN = 0.028;
+const FRAMES_INICIO = 2;
+const FRAMES_FIN = 2;
 const BASELINE_FRAMES_MIN = 12;
 const VISIBILIDAD_MINIMA = 0.6;
 const MIN_TEST_SECONDS = 3;
 const FRAMES_EVENTO = 4;
 const FRAMES_ESTABILIDAD_INICIO = 4;
-const UMBRAL_DIFERENCIA_PIES_INICIO = 0.015;
-const UMBRAL_DIFERENCIA_PIES_FIN = 0.02;
+const UMBRAL_DIFERENCIA_PIES_INICIO = 0.012;
+const UMBRAL_DIFERENCIA_PIES_FIN = 0.035;
 const UMBRAL_SEPARACION_PIERNAS = 0.18;
 const UMBRAL_MOVIMIENTO_PREVIO_INICIO = 0.015;
 const UMBRAL_BALANCEO_TRONCO = 0.045;
@@ -184,6 +184,7 @@ const patientSearchIdEl = document.getElementById("patientSearchId");
 const patientSearchCenterEl = document.getElementById("patientSearchCenter");
 const patientSelectEl = document.getElementById("patientSelect");
 const newPatientButton = document.getElementById("newPatient");
+const savePatientButton = document.getElementById("savePatient");
 const importCsvButton = document.getElementById("importCsv");
 const csvFileInputEl = document.getElementById("csvFileInput");
 const videoFileInputEl = document.getElementById("videoFileInput");
@@ -198,7 +199,9 @@ const reviewResultButton = document.getElementById("reviewResult");
 const resumenEl = document.getElementById("resumen");
 const patientCodeEl = document.getElementById("patientCode");
 const nombrePacienteEl = document.getElementById("nombrePaciente");
-const fechaNacimientoEl = document.getElementById("fechaNacimiento");
+const fechaNacimientoDesktopEl = document.getElementById("fechaNacimientoDesktop");
+const fechaNacimientoMobileEl = document.getElementById("fechaNacimientoMobile");
+let fechaNacimientoEl = null;
 const patientIdentifierEl = document.getElementById("patientIdentifier");
 const edadCalculadaEl = document.getElementById("edadCalculada");
 const sexoPacienteEl = document.getElementById("sexoPaciente");
@@ -310,12 +313,63 @@ function parseFlexibleBirthDate(value) {
   return isoDate;
 }
 
+function formatBirthDateInput(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
 function formatBirthDateForDisplay(fechaNacimiento) {
   const isoDate = parseFlexibleBirthDate(fechaNacimiento);
   if (!isoDate) return String(fechaNacimiento || "").trim();
 
   const [year, month, day] = isoDate.split("-");
   return `${day}/${month}/${year}`;
+}
+
+function prefersNativeBirthDatePicker() {
+  return !isDesktopComputer();
+}
+
+function getBirthDateInputValue() {
+  return fechaNacimientoEl?.value || "";
+}
+
+function setBirthDateInputValue(value) {
+  if (!fechaNacimientoEl) return;
+
+  const normalizedDate = parseFlexibleBirthDate(value);
+
+  if (fechaNacimientoEl === fechaNacimientoMobileEl) {
+    fechaNacimientoEl.value = normalizedDate || "";
+    return;
+  }
+
+  fechaNacimientoEl.value = normalizedDate
+    ? formatBirthDateForDisplay(normalizedDate)
+    : String(value || "").trim();
+}
+
+function syncBirthDateInputMode() {
+  const useNativePicker = prefersNativeBirthDatePicker();
+  const currentValue = parseFlexibleBirthDate(
+    fechaNacimientoEl?.value
+    || fechaNacimientoDesktopEl?.value
+    || fechaNacimientoMobileEl?.value
+    || ""
+  );
+
+  if (fechaNacimientoDesktopEl) {
+    fechaNacimientoDesktopEl.hidden = useNativePicker;
+  }
+
+  if (fechaNacimientoMobileEl) {
+    fechaNacimientoMobileEl.hidden = !useNativePicker;
+  }
+
+  fechaNacimientoEl = useNativePicker ? fechaNacimientoMobileEl : fechaNacimientoDesktopEl;
+  setBirthDateInputValue(currentValue);
 }
 
 function getStoredPatientAge(patient) {
@@ -329,7 +383,7 @@ function getPatientAge(patient) {
 }
 
 function getEdadPaciente() {
-  const edadPorFecha = calculateAgeFromBirthDate(parseFlexibleBirthDate(fechaNacimientoEl?.value || ""));
+  const edadPorFecha = calculateAgeFromBirthDate(parseFlexibleBirthDate(getBirthDateInputValue()));
   if (edadPorFecha !== null) return edadPorFecha;
 
   const selectedPatient = getSelectedPatient();
@@ -352,7 +406,7 @@ function updateCalculatedAge() {
 
 function getPatientPayloadFromForm() {
   const selectedPatient = getSelectedPatient();
-  const fechaNacimiento = parseFlexibleBirthDate(fechaNacimientoEl?.value || "");
+  const fechaNacimiento = parseFlexibleBirthDate(getBirthDateInputValue());
   return {
     id: currentPatientId,
     patientCode: patientCodeEl?.value || selectedPatient?.patientCode || "",
@@ -364,6 +418,20 @@ function getPatientPayloadFromForm() {
     centro: centroEl?.value?.trim() || "",
     observaciones: observacionesEl?.value?.trim() || ""
   };
+}
+
+function hasPatientFormDraft() {
+  return Boolean(
+    nombrePacienteEl?.value?.trim() ||
+    getBirthDateInputValue().trim() ||
+    patientIdentifierEl?.value?.trim() ||
+    centroEl?.value?.trim() ||
+    observacionesEl?.value?.trim()
+  );
+}
+
+function hasUnsavedPatientDraft() {
+  return !currentPatientId && hasPatientFormDraft();
 }
 
 function validatePatientData() {
@@ -649,12 +717,13 @@ function fillPatientForm(patient) {
   currentPatientId = patient.id;
   if (patientCodeEl) patientCodeEl.value = patient.patientCode || "";
   nombrePacienteEl.value = patient.nombre || "";
-  fechaNacimientoEl.value = formatBirthDateForDisplay(patient.fechaNacimiento || "");
+  setBirthDateInputValue(patient.fechaNacimiento || "");
   if (patientIdentifierEl) patientIdentifierEl.value = patient.identificador || "";
   sexoPacienteEl.value = patient.sexo || "";
   centroEl.value = patient.centro || centroEl.value || "";
   observacionesEl.value = patient.observaciones || "";
   updateCalculatedAge();
+  renderPatientSelect();
 }
 
 function clearPatientForm() {
@@ -662,7 +731,7 @@ function clearPatientForm() {
   if (patientSelectEl) patientSelectEl.value = "";
   if (patientCodeEl) patientCodeEl.value = "";
   nombrePacienteEl.value = "";
-  fechaNacimientoEl.value = "";
+  setBirthDateInputValue("");
   if (patientIdentifierEl) patientIdentifierEl.value = "";
   edadCalculadaEl.value = "";
   sexoPacienteEl.value = "";
@@ -690,12 +759,34 @@ function renderPatientHelp(message = null) {
       .map((patient) => `${patient.patientCode || "Sin ID"}${patient.identificador ? ` / ${patient.identificador}` : ""}`)
       .join(", ")}. Si corresponde, complete DNI/HC antes de seguir.`
     : "";
+  const draftText =
+    hasUnsavedPatientDraft() && validation.ok
+      ? " La ficha todavía no está guardada: use 'Guardar ficha' para que aparezca en la búsqueda e historial."
+      : "";
   const text = message
     || (validation.ok
-      ? `Paciente listo${currentPatientId ? ` (${findPatientById(currentPatientId)?.patientCode || ""})` : ""}. Ya puede iniciar la prueba y guardar el resultado.${guiaPrueba}`
+      ? `Paciente listo${currentPatientId ? ` (${findPatientById(currentPatientId)?.patientCode || ""})` : ""}. Ya puede iniciar la prueba y guardar el resultado.${guiaPrueba}${draftText}`
       : `Complete nombre y fecha de nacimiento para habilitar la prueba. El sistema asigna un ID único al guardar.${guiaPrueba}`);
 
   patientHelpEl.textContent = `${text}${duplicateText}`;
+}
+
+function getSearchablePatientText(patient) {
+  return normalizeText([
+    patient.patientCode,
+    patient.identificador,
+    patient.nombre,
+    patient.centro,
+    patient.fechaNacimiento ? formatBirthDateForDisplay(patient.fechaNacimiento) : "",
+    getPatientAge(patient) !== null ? `${getPatientAge(patient)} anos` : ""
+  ].filter(Boolean).join(" "));
+}
+
+function matchesSearchTokens(haystack, query) {
+  const normalizedQuery = normalizeText(query);
+  if (!normalizedQuery) return true;
+  const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+  return tokens.every((token) => haystack.includes(token));
 }
 
 function renderPatientSelect() {
@@ -709,16 +800,15 @@ function renderPatientSelect() {
     a.nombre.localeCompare(b.nombre, "es")
   );
 
-  patients
-    .filter((patient) => (
-      (!searchName || normalizeText(patient.nombre).includes(searchName)) &&
-      (
-        !searchId ||
-        normalizeText(patient.patientCode).includes(searchId) ||
-        normalizeText(patient.identificador).includes(searchId)
-      ) &&
-      (!searchCenter || normalizeText(patient.centro).includes(searchCenter))
-    ))
+  const filteredPatients = patients
+    .filter((patient) => {
+      const nameMatches = matchesSearchTokens(getSearchablePatientText(patient), searchName);
+      const idMatches = matchesSearchTokens(getSearchablePatientText(patient), searchId);
+      const centerMatches = matchesSearchTokens(normalizeText(patient.centro), searchCenter);
+      return nameMatches && idMatches && centerMatches;
+    });
+
+  filteredPatients
     .forEach((patient) => {
       const edad = getPatientAge(patient);
       const identificadorLabel = patient.identificador ? ` | ${patient.identificador}` : "";
@@ -726,6 +816,10 @@ function renderPatientSelect() {
       const selected = patient.id === currentPatientId ? " selected" : "";
       options.push(`<option value="${escapeHtml(patient.id)}"${selected}>${escapeHtml(label)}</option>`);
     });
+
+  if (!filteredPatients.length) {
+    options.push('<option value="" disabled>Sin coincidencias</option>');
+  }
 
   patientSelectEl.innerHTML = options.join("");
 
@@ -1423,6 +1517,39 @@ function saveCompletedTestRecord(record) {
   renderPatientSelect();
   renderPatientHistory();
   updateReviewResultButton();
+}
+
+function savePatientFromForm(options = {}) {
+  const validation = validatePatientData();
+  if (!validation.ok) {
+    renderPatientHelp(validation.message);
+    setStatus(validation.message);
+    updateControls();
+    return null;
+  }
+
+  const patient = upsertPatient(validation.patient);
+  fillPatientForm(patient);
+  renderPatientHelp(options.message || `Ficha guardada para ${patient.nombre}. Ya aparece en la búsqueda e historial.`);
+  renderPatientHistory();
+  updateControls();
+  setStatus(options.status || `Ficha guardada: ${patient.patientCode || patient.nombre}.`);
+  return patient;
+}
+
+function confirmSavePatientDraftIfNeeded() {
+  if (!hasUnsavedPatientDraft()) return true;
+
+  const validation = validatePatientData();
+  if (!validation.ok) return true;
+
+  const shouldSave = window.confirm(
+    "Hay una ficha cargada sin guardar. ¿Desea guardarla antes de continuar?"
+  );
+
+  if (!shouldSave) return true;
+
+  return Boolean(savePatientFromForm());
 }
 
 function updateReviewResultButton() {
@@ -2313,6 +2440,9 @@ function updateControls() {
   startTestButton.disabled = !cameraModeActive || !patientReady;
   nuevoTestButton.disabled = !cameraModeActive || !patientReady;
   stopTestButton.disabled = !cameraModeActive || !testRunning;
+  if (savePatientButton) {
+    savePatientButton.disabled = !patientReady;
+  }
   syncTestActionButtons();
   renderTestPhaseHelp();
 }
@@ -2429,6 +2559,7 @@ function prepararTest() {
   }
 
   setStatus("Preparando...");
+  updateControls();
 }
 
 function iniciarTest(landmarks) {
@@ -3056,11 +3187,12 @@ function procesarTrigger(results) {
 
     if (stableStartFrames < FRAMES_ESTABILIDAD_INICIO) {
       setStatus("Quédese quieto");
+      renderTestPhaseHelp();
       return;
     }
 
     startReady = true;
-    syncTestActionButtons();
+    updateControls();
     setStatus("Listo, levante un pie");
     if (!readyCameraCentered) {
       readyCameraCentered = true;
@@ -3075,6 +3207,9 @@ function procesarTrigger(results) {
       framesElevado++;
     } else {
       framesElevado = 0;
+      if (startReady) {
+        setStatus("Listo. Levante un pie un poco más.");
+      }
     }
 
     if (framesElevado >= FRAMES_INICIO) {
@@ -3104,7 +3239,7 @@ function procesarTrigger(results) {
     );
     const umbralRetornoDinamico = Math.max(
       UMBRAL_FIN,
-      (analisisMonopedia.maxDeltaPieActivo || 0) * 0.45
+      (analisisMonopedia.maxDeltaPieActivo || 0) * 0.78
     );
     const ambosPiesApoyados =
       deltaIzquierdo < UMBRAL_FIN && deltaDerecho < UMBRAL_FIN;
@@ -3122,6 +3257,7 @@ function procesarTrigger(results) {
     } else {
       framesApoyado = 0;
       instanteInicioApoyo = null;
+      setStatus("Test en curso... baje el pie para finalizar.");
     }
 
     if (framesApoyado >= FRAMES_FIN) {
@@ -3443,6 +3579,11 @@ toggleSidebarButton?.addEventListener("click", () => {
 });
 
 patientSelectEl?.addEventListener("change", () => {
+  if (!confirmSavePatientDraftIfNeeded()) {
+    patientSelectEl.value = currentPatientId || "";
+    return;
+  }
+
   const selectedPatient = findPatientById(patientSelectEl.value);
 
   if (!selectedPatient) {
@@ -3459,11 +3600,17 @@ patientSelectEl?.addEventListener("change", () => {
 });
 
 newPatientButton?.addEventListener("click", () => {
+  if (!confirmSavePatientDraftIfNeeded()) return;
+
   const currentCentro = centroEl.value;
   clearPatientForm();
   centroEl.value = currentCentro;
   setStatus("Formulario listo para cargar un nuevo paciente.");
   collapseSidebarForMobileWork();
+});
+
+savePatientButton?.addEventListener("click", () => {
+  savePatientFromForm();
 });
 
 importCsvButton?.addEventListener("click", () => {
@@ -3562,13 +3709,9 @@ reviewResultButton?.addEventListener("click", () => {
   smoothScrollToElement(resumenEl, "start");
 });
 
-[nombrePacienteEl, fechaNacimientoEl, patientIdentifierEl, sexoPacienteEl, centroEl, observacionesEl].forEach((field) => {
+[nombrePacienteEl, patientIdentifierEl, sexoPacienteEl, centroEl, observacionesEl].forEach((field) => {
   field?.addEventListener("input", () => {
-    if (field === fechaNacimientoEl) {
-      updateCalculatedAge();
-    }
-
-    if (field === nombrePacienteEl || field === fechaNacimientoEl) {
+    if (field === nombrePacienteEl) {
       currentPatientId = null;
       if (patientCodeEl) {
         patientCodeEl.value = "";
@@ -3581,12 +3724,47 @@ reviewResultButton?.addEventListener("click", () => {
     renderPatientHelp();
     updateControls();
   });
+
+  field?.addEventListener("blur", () => {
+    if (field === fechaNacimientoEl) return;
+    renderPatientSelect();
+  });
 });
 
-fechaNacimientoEl?.addEventListener("blur", () => {
-  const normalizedDate = parseFlexibleBirthDate(fechaNacimientoEl.value || "");
+fechaNacimientoDesktopEl?.addEventListener("input", () => {
+  const formattedDate = formatBirthDateInput(fechaNacimientoDesktopEl.value || "");
+  if (fechaNacimientoDesktopEl.value !== formattedDate) {
+    fechaNacimientoDesktopEl.value = formattedDate;
+  }
+  currentPatientId = null;
+  if (patientCodeEl) {
+    patientCodeEl.value = "";
+  }
+  if (patientSelectEl) {
+    patientSelectEl.value = "";
+  }
+  updateCalculatedAge();
+  renderPatientHelp();
+  updateControls();
+});
+
+fechaNacimientoDesktopEl?.addEventListener("blur", () => {
+  const normalizedDate = parseFlexibleBirthDate(fechaNacimientoDesktopEl.value || "");
   if (normalizedDate) {
-    fechaNacimientoEl.value = formatBirthDateForDisplay(normalizedDate);
+    fechaNacimientoDesktopEl.value = formatBirthDateForDisplay(normalizedDate);
+  }
+  updateCalculatedAge();
+  renderPatientHelp();
+  updateControls();
+});
+
+fechaNacimientoMobileEl?.addEventListener("input", () => {
+  currentPatientId = null;
+  if (patientCodeEl) {
+    patientCodeEl.value = "";
+  }
+  if (patientSelectEl) {
+    patientSelectEl.value = "";
   }
   updateCalculatedAge();
   renderPatientHelp();
@@ -3605,6 +3783,8 @@ if (cameraModeEl && isAppleMobile()) {
 loadRegistry();
 loadRenderModePreference();
 loadFramingModePreference();
+syncBirthDateInputMode();
+window.addEventListener("resize", syncBirthDateInputMode);
 renderPatientSelect();
 renderPatientHistory();
 updateCalculatedAge();
