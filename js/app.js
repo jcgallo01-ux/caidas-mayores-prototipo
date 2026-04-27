@@ -207,6 +207,7 @@ const edadCalculadaEl = document.getElementById("edadCalculada");
 const sexoPacienteEl = document.getElementById("sexoPaciente");
 const centroEl = document.getElementById("centro");
 const pruebaEl = document.getElementById("prueba");
+const ladoApoyoEl = document.getElementById("ladoApoyo");
 const observacionesEl = document.getElementById("observaciones");
 
 // ---------- Persistencia / paciente ----------
@@ -618,6 +619,14 @@ function getPruebaActual() {
   return pruebaEl?.value || "monopedia";
 }
 
+function getLadoApoyoMonopedia() {
+  return ladoApoyoEl?.value === "left" ? "left" : "right";
+}
+
+function getEtiquetaLadoApoyo(ladoApoyo) {
+  return ladoApoyo === "left" ? "izquierda" : "derecha";
+}
+
 function getNombrePrueba(prueba) {
   switch (prueba) {
     case "sit_to_stand":
@@ -763,9 +772,13 @@ function renderPatientHelp(message = null) {
     hasUnsavedPatientDraft() && validation.ok
       ? " La ficha todavía no está guardada: use 'Guardar ficha' para que aparezca en la búsqueda e historial."
       : "";
+  const ladoApoyoTexto =
+    pruebaActual === "monopedia"
+      ? ` en apoyo ${getEtiquetaLadoApoyo(getLadoApoyoMonopedia())}`
+      : "";
   const text = message
     || (validation.ok
-      ? `Paciente listo${currentPatientId ? ` (${findPatientById(currentPatientId)?.patientCode || ""})` : ""}. Ya puede iniciar la prueba y guardar el resultado.${guiaPrueba}${draftText}`
+      ? `Paciente listo${currentPatientId ? ` (${findPatientById(currentPatientId)?.patientCode || ""})` : ""}. Ya puede iniciar la prueba${ladoApoyoTexto} y guardar el resultado.${guiaPrueba}${draftText}`
       : `Complete nombre y fecha de nacimiento para habilitar la prueba. El sistema asigna un ID único al guardar.${guiaPrueba}`);
 
   patientHelpEl.textContent = `${text}${duplicateText}`;
@@ -900,8 +913,12 @@ function getComparisonHighlights(tests) {
           : delta > 0
             ? `cambio de +${delta.toFixed(1)} s`
             : `cambio de ${delta.toFixed(1)} s`;
+      const ladoTexto =
+        key === "monopedia" && last.ladoApoyo
+          ? ` (${getEtiquetaLadoApoyo(last.ladoApoyo)})`
+          : "";
 
-      return `${getNombrePrueba(last.prueba)}: ${ordered.length} registros, ${trendLabel} entre el primer y el último estudio cargado.`;
+      return `${getNombrePrueba(last.prueba)}${ladoTexto}: ${ordered.length} registros, ${trendLabel} entre el primer y el último estudio cargado.`;
     });
 }
 
@@ -966,7 +983,7 @@ function renderPatientHistory() {
               (test) => `
                 <tr>
                   <td>${escapeHtml(formatDateTime(test.timestamp))}</td>
-                  <td>${escapeHtml(getNombrePrueba(test.prueba || "monopedia"))}</td>
+                  <td>${escapeHtml(getNombrePrueba(test.prueba || "monopedia"))}${test.prueba === "monopedia" && test.ladoApoyo ? ` (${escapeHtml(getEtiquetaLadoApoyo(test.ladoApoyo))})` : ""}</td>
                   <td>${escapeHtml(test.resultadoTitulo || "Sin clasificación")}</td>
                   <td>${escapeHtml(formatSeconds(test.tiempoSegundos))}</td>
                   <td><span class="history-risk ${escapeHtml(test.resultadoColor || "")}">${escapeHtml((test.resultadoColor || "sin dato").toUpperCase())}</span></td>
@@ -1017,6 +1034,7 @@ function downloadCsv() {
     "sexo",
     "centro",
     "prueba",
+    "lado_apoyo",
     "observaciones",
     "tiempo_segundos",
     "resultado_nivel",
@@ -1037,6 +1055,7 @@ function downloadCsv() {
       test.sexo,
       test.centro,
       test.prueba,
+      test.ladoApoyo || "",
       test.observaciones,
       Number(test.tiempoSegundos).toFixed(1),
       test.resultadoNivel,
@@ -1289,6 +1308,7 @@ function importTestsFromRows(rows) {
       sexo: patient.sexo || patientData.sexo || "",
       centro: patient.centro || patientData.centro || "",
       prueba,
+      ladoApoyo: getCsvValue(row, ["lado_apoyo", "lado apoyo", "pierna_apoyo", "pierna de apoyo"]) || "",
       observaciones: patientData.observaciones || "",
       tiempoSegundos,
       resultadoNivel: getCsvValue(row, ["resultado_nivel"]) || resultado.nivel,
@@ -1568,6 +1588,8 @@ function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFi
 
   const edad = patientData.edad;
   const nombrePaciente = patientData.nombre || "Paciente";
+  const ladoApoyo = getLadoApoyoMonopedia();
+  const etiquetaLadoApoyo = getEtiquetaLadoApoyo(ladoApoyo);
   const resultado = clasificarRiesgoMonopedia(tiempoSegundos, edad);
   const eventos = analisisMonopedia?.eventos ?? crearAnalisisMonopedia().eventos;
   const interpretaciones = getInterpretacionesCompensaciones(eventos, motivoFin);
@@ -1608,6 +1630,7 @@ function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFi
       <div class="resultado-contenido">
         <h2>${resultado.titulo}</h2>
         <p><strong>${nombrePaciente}</strong>${edad !== null ? `, ${edad} años` : ""}</p>
+        <p><strong>Pierna de apoyo evaluada:</strong> ${etiquetaLadoApoyo}</p>
         <p><strong>Tiempo registrado:</strong> ${formatSeconds(tiempoSegundos)}</p>
         ${detalleMotivoFin}
         <p><strong>Interpretación:</strong> ${resultado.detalle}</p>
@@ -1636,6 +1659,7 @@ function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFi
       sexo: patient.sexo || "",
       centro: centroEl?.value?.trim() || "",
       prueba: "monopedia",
+      ladoApoyo,
       observaciones: observacionesEl?.value?.trim() || "",
       tiempoSegundos,
       resultadoNivel: resultado.nivel,
@@ -2558,7 +2582,7 @@ function prepararTest() {
     return;
   }
 
-  setStatus("Preparando...");
+  setStatus(`Preparando monopedia en apoyo ${getEtiquetaLadoApoyo(getLadoApoyoMonopedia())}...`);
   updateControls();
 }
 
@@ -3149,6 +3173,8 @@ function procesarTrigger(results) {
 
   const footY = Math.min(leftFoot.y, rightFoot.y);
   const pieMasAlto = leftFoot.y <= rightFoot.y ? "left" : "right";
+  const ladoApoyoSeleccionado = getLadoApoyoMonopedia();
+  const pieEsperadoElevado = ladoApoyoSeleccionado === "right" ? "left" : "right";
 
   // baseline inicial
   if (esperandoInicio && baselineFootY === null) {
@@ -3203,12 +3229,16 @@ function procesarTrigger(results) {
 
   // ---------- Inicio ----------
   if (esperandoInicio && !triggerActivo) {
-    if (delta > UMBRAL_INICIO && diferenciaEntrePies > UMBRAL_DIFERENCIA_PIES_INICIO) {
+    if (
+      delta > UMBRAL_INICIO &&
+      diferenciaEntrePies > UMBRAL_DIFERENCIA_PIES_INICIO &&
+      pieMasAlto === pieEsperadoElevado
+    ) {
       framesElevado++;
     } else {
       framesElevado = 0;
       if (startReady) {
-        setStatus("Listo. Levante un pie un poco más.");
+        setStatus(`Listo. Levante el pie ${getEtiquetaLadoApoyo(pieEsperadoElevado)} un poco más.`);
       }
     }
 
@@ -3557,6 +3587,13 @@ pruebaEl?.addEventListener("change", () => {
   renderPatientHelp();
   if (!testRunning) {
     setStatus(`Prueba seleccionada: ${getNombrePrueba(getPruebaActual())}.`);
+  }
+});
+
+ladoApoyoEl?.addEventListener("change", () => {
+  if (getPruebaActual() === "monopedia" && !testRunning) {
+    renderPatientHelp();
+    setStatus(`Pierna de apoyo seleccionada: ${getEtiquetaLadoApoyo(getLadoApoyoMonopedia())}.`);
   }
 });
 

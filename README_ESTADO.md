@@ -79,6 +79,29 @@ Cada vez que haya un cambio importante, conviene agregar una entrada breve con:
 - Accion: se creo esta bitacora local para no depender solo del chat.
 - Estado: resuelto parcialmente. El chat sigue siendo util, pero lo importante ya puede registrarse aca.
 
+### 2026-04-23 | Celular | Monopedia online
+
+- Problema: habia duda sobre si los cambios locales llegaban realmente a GitHub, Vercel y celular.
+- Accion: se valido el flujo completo editando, commiteando, haciendo push y viendo un cambio minimo en el celular.
+- Estado: resuelto. El circuito local -> GitHub -> Vercel -> celular funciona.
+- Nota: para futuros cambios, trabajar en el clon y usar terminal para Git.
+- Carpeta de trabajo:
+  - `/Users/juancarlosgallo/Documents/caidas-mayores-prototipo/caidas-mayores-prototipo`
+
+### 2026-04-23 | Celular | Monopedia - prueba funcional
+
+- Problema: se necesitaba confirmar si monopedia ya estaba usable online en celular.
+- Accion: se probo la version publicada.
+- Estado: parece funcionar correctamente en una prueba inicial.
+- Pendiente: seguir observando si el cierre detecta la bajada del pie con una sola accion.
+
+### 2026-04-23 | Sit to Stand | Validacion pendiente
+
+- Problema: el sistema muestra encuadre completo aunque el sujeto no este completamente en plano, puede ponerse verde con detecciones parciales y el cronometro no dispara.
+- Observacion: el overlay acompana el movimiento, lo que indica que hay landmarks, pero la maquina de estados no llega a iniciar ni contar.
+- Estado: mas inmaduro que monopedia. Requiere rediseño de estados y validacion especifica, sin afectar monopedia.
+- Riesgo: no conviene agregar controles manuales tipo `+1 repeticion`, porque obliga al operador a controlar al paciente y al sistema al mismo tiempo.
+
 ## Avances
 
 ### 2026-04-21 | Pacientes
@@ -103,6 +126,15 @@ Cada vez que haya un cambio importante, conviene agregar una entrada breve con:
 - La interfaz avisa cuando la ficha todavia no esta guardada.
 - Al cambiar de paciente con ficha valida sin guardar, pregunta si se desea guardar antes.
 
+### 2026-04-23 | Flujo Git / publicacion
+
+- Se clono el repositorio de GitHub dentro de una carpeta local conectada.
+- Se valido `git push origin main` desde terminal.
+- Recomendacion operativa:
+  - editar en VS Code
+  - usar terminal para `git status`, `git add`, `git commit` y `git push`
+- Evitar volver al copy-paste manual en GitHub web.
+
 ## Estado por modulo
 
 ### Pacientes
@@ -118,11 +150,18 @@ Cada vez que haya un cambio importante, conviene agregar una entrada breve con:
 - Inicio automatico: mejorado
 - Cierre automatico: todavia sensible
 - Informe final: funcional
+- Proximo ajuste clinico: agregar `Pierna de apoyo` con opciones `Derecha` / `Izquierda`, sin deteccion automatica del lado.
+- Justificacion: la comparacion clinica debe hacerse por pierna de apoyo, especialmente en casos de dolor unilateral como gonalgia.
 
 ### Sit to Stand
 
-- Funcional en modo basico
-- Pendiente validacion de campo mas amplia
+- Estado actual: no confiable para uso clinico.
+- Problemas observados:
+  - encuadre completo falso
+  - falsos positivos con detecciones parciales
+  - cronometro no dispara
+  - contador/overlay se mueve pero no cuenta
+- Requiere cambios especificos y separados de monopedia.
 
 ### Video de caidas
 
@@ -137,6 +176,13 @@ Validar en Mac si:
 
 - la ficha guardada aparece facil en busqueda
 - el test de monopedia cierra con una sola bajada del pie
+
+Agregar a monopedia:
+
+- selector `Pierna de apoyo`
+- opciones `Derecha` / `Izquierda`
+- guardar ese dato en el resultado
+- mostrarlo en el informe e historial
 
 ### Prioridad 2
 
@@ -158,6 +204,21 @@ Si monopedia sigue cerrando tarde, revisar solo esta parte:
 Archivo principal a revisar:
 
 - `/Users/juancarlosgallo/Documents/caidas-mayores-prototipo/js/app.js`
+
+### Idea posterior: resumen simple del paciente
+
+No crear todavia una estructura compleja de episodios/evaluaciones.
+
+Primera version recomendada:
+
+- seguir guardando cada prueba individual
+- agregar `ladoApoyo` en monopedia
+- mejorar historial con ultimos estudios por fecha, prueba, lado, tiempo y resultado
+- agregar resumen simple:
+  - ultima prueba
+  - peor resultado reciente
+  - comparacion derecha/izquierda si hay ambas piernas
+  - alerta de asimetria si una pierna esta roja y otra verde
 
 ## Plantilla para nuevas entradas
 
