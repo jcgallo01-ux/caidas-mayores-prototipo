@@ -3173,8 +3173,6 @@ function procesarTrigger(results) {
 
   const footY = Math.min(leftFoot.y, rightFoot.y);
   const pieMasAlto = leftFoot.y <= rightFoot.y ? "left" : "right";
-  const ladoApoyoSeleccionado = getLadoApoyoMonopedia();
-  const pieEsperadoElevado = ladoApoyoSeleccionado === "right" ? "left" : "right";
 
   // baseline inicial
   if (esperandoInicio && baselineFootY === null) {
@@ -3229,16 +3227,12 @@ function procesarTrigger(results) {
 
   // ---------- Inicio ----------
   if (esperandoInicio && !triggerActivo) {
-    if (
-      delta > UMBRAL_INICIO &&
-      diferenciaEntrePies > UMBRAL_DIFERENCIA_PIES_INICIO &&
-      pieMasAlto === pieEsperadoElevado
-    ) {
+    if (delta > UMBRAL_INICIO && diferenciaEntrePies > UMBRAL_DIFERENCIA_PIES_INICIO) {
       framesElevado++;
     } else {
       framesElevado = 0;
       if (startReady) {
-        setStatus(`Listo. Levante el pie ${getEtiquetaLadoApoyo(pieEsperadoElevado)} un poco más.`);
+        setStatus("Listo. Levante un pie un poco más.");
       }
     }
 
