@@ -12,6 +12,7 @@ let availableVideoDevices = [];
 let renderMode = "privacy";
 let sourceMode = "camera";
 let uploadedVideoUrl = null;
+let uploadedVideoName = "";
 let currentPatientId = null;
 let lastCompletedTestRecord = null;
 let patientRegistry = {
@@ -124,11 +125,14 @@ function crearAnalisisMonopedia() {
 function crearAnalisisVideoCaida() {
   return {
     baselineHipY: null,
+    baselineHipX: null,
     baselineTrunkAngle: null,
     baselineFrames: 0,
     previousHipY: null,
     maxHipDropSpeed: 0,
     maxHipDropFromBaseline: 0,
+    maxHipLateralShift: 0,
+    maxTrunkAngleDelta: 0,
     lastTrunkAngle: 0,
     lowPostureFrames: 0,
     horizontalFrames: 0,
@@ -136,6 +140,7 @@ function crearAnalisisVideoCaida() {
     fallReasons: [],
     detectionHipDrop: null,
     detectionTrunkAngle: null,
+    detectionLateralShift: 0,
     detectionLowPostureFrames: 0,
     detectionHorizontalFrames: 0,
     lostTrackingFrames: 0,
@@ -184,6 +189,10 @@ const refreshCamerasButton = document.getElementById("refreshCameras");
 const loadVideoButton = document.getElementById("loadVideo");
 const cameraHelpEl = document.getElementById("cameraHelp");
 const videoHelpEl = document.getElementById("videoHelp");
+const videoAnalysisModeEl = document.getElementById("videoAnalysisMode");
+const videoExpectedDirectionEl = document.getElementById("videoExpectedDirection");
+const videoHeadFocusEl = document.getElementById("videoHeadFocus");
+const applyVideoModeButton = document.getElementById("applyVideoMode");
 const patientSearchNameEl = document.getElementById("patientSearchName");
 const patientSearchIdEl = document.getElementById("patientSearchId");
 const patientSearchCenterEl = document.getElementById("patientSearchCenter");
@@ -231,6 +240,37 @@ function normalizeText(texto) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
+}
+
+function getVideoAnalysisMode() {
+  return videoAnalysisModeEl?.value === "analysis" ? "analysis" : "fall";
+}
+
+function isTechnicalVideoAnalysisMode() {
+  return getVideoAnalysisMode() === "analysis";
+}
+
+function getVideoExpectedDirection() {
+  return videoExpectedDirectionEl?.value || "";
+}
+
+function getVideoExpectedDirectionLabel() {
+  switch (getVideoExpectedDirection()) {
+    case "forward":
+      return "hacia adelante";
+    case "backward":
+      return "hacia atrás";
+    case "lateral":
+      return "hacia un costado";
+    case "rotation":
+      return "con rotación";
+    default:
+      return "sin especificar";
+  }
+}
+
+function getVideoHeadFocus() {
+  return videoHeadFocusEl?.value?.trim() || "";
 }
 
 function createId(prefix) {
@@ -1665,6 +1705,7 @@ function updateFallAlertChip() {
 
   fallAlertChip.hidden = !(
     sourceMode === "file" &&
+    !isTechnicalVideoAnalysisMode() &&
     analisisVideoCaida &&
     analisisVideoCaida.fallDetectedAt !== null
   );
@@ -1674,6 +1715,11 @@ function updateFrameStepButtons() {
   const show = sourceMode === "file" && Boolean(videoElement?.src || uploadedVideoUrl);
   if (prevFrameButton) prevFrameButton.hidden = !show;
   if (nextFrameButton) nextFrameButton.hidden = !show;
+}
+
+function updateApplyVideoModeButton() {
+  if (!applyVideoModeButton) return;
+  applyVideoModeButton.disabled = !(sourceMode === "file" && Boolean(uploadedVideoUrl || videoElement?.src));
 }
 
 function stepVideoFrame(direction = 1) {
@@ -1693,6 +1739,83 @@ async function renderCurrentVideoFrame() {
   } finally {
     processing = false;
   }
+}
+
+function getVideoRotationLabel(angleDelta) {
+  if (angleDelta >= 28) return "alta";
+  if (angleDelta >= 14) return "moderada";
+  if (angleDelta > 0) return "leve";
+  return "no evidente";
+}
+
+function getVideoLateralShiftLabel(shift) {
+  if (shift >= 0.08) return "marcado";
+  if (shift >= 0.04) return "moderado";
+  if (shift > 0) return "leve";
+  return "no evidente";
+}
+
+function getVideoContextNotes() {
+  const notes = [];
+  const expectedDirection = getVideoExpectedDirectionLabel();
+  const headFocus = getVideoHeadFocus();
+
+  if (getVideoExpectedDirection()) {
+    notes.push(`Dirección o tipo esperado informado por el usuario: ${expectedDirection}.`);
+  }
+
+  if (headFocus) {
+    notes.push(`Foco adicional solicitado: ${headFocus}.`);
+  }
+
+  return notes;
+}
+
+function rerenderVideoSummaryIfVisible() {
+  if (
+    sourceMode === "file" &&
+    analisisVideoCaida &&
+    resumenEl &&
+    resumenEl.style.display !== "none"
+  ) {
+    renderResultadoVideoCaida();
+  }
+}
+
+async function applyVideoAnalysis(options = {}) {
+  const { autoplay = true } = options;
+  if (sourceMode !== "file" || !(uploadedVideoUrl || videoElement?.src)) return;
+
+  analisisVideoCaida = crearAnalisisVideoCaida();
+  limpiarResumen();
+  updateVideoHelp();
+  videoElement.pause();
+  videoElement.currentTime = 0;
+
+  if (autoplay) {
+    try {
+      await videoElement.play();
+      cameraRunning = true;
+      processing = false;
+      cancelAnimationFrame(animationId);
+      scheduleVideoFrameProcessing();
+      setStatus(
+        isTechnicalVideoAnalysisMode()
+          ? "Analizando video en modo técnico. Podés pausar o revisar cuadro a cuadro."
+          : "Analizando video local. Podés pausar o volver a reproducir para revisar el tramo detectado."
+      );
+    } catch (error) {
+      console.warn("La reproducción automática fue bloqueada al aplicar el análisis", error);
+      setStatus("Video listo. Presioná reproducir para iniciar el análisis con el modo seleccionado.");
+    }
+  } else {
+    await renderCurrentVideoFrame();
+    setStatus("Modo de video actualizado. Presioná Aplicar análisis o reproducir para revisar.");
+  }
+
+  updateFallAlertChip();
+  updateReplayEventButton();
+  updateFrameStepButtons();
 }
 
 function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFin = null) {
@@ -1866,38 +1989,67 @@ function renderResultadoFinal(tiempoSegundos, motivoFin = null, prueba = getPrue
 function renderResultadoVideoCaida() {
   if (!resumenEl || !analisisVideoCaida) return;
 
+  const technicalMode = isTechnicalVideoAnalysisMode();
   const detected = analisisVideoCaida.fallDetectedAt !== null;
   const completed = analisisVideoCaida.analysisCompleted;
-  const color = detected ? "rojo" : "verde";
-  const titulo = detected
-    ? completed
-      ? "Posible caída detectada"
-      : "Posible caída en revisión"
-    : completed
-      ? "No se detectó una caída clara"
-      : "Analizando video";
+  const color = technicalMode ? (detected ? "amarillo" : "verde") : (detected ? "rojo" : "verde");
+  const titulo = technicalMode
+    ? detected
+      ? completed
+        ? "Análisis técnico con momento destacado"
+        : "Análisis técnico en revisión"
+      : completed
+        ? "Análisis técnico completado"
+        : "Analizando movimiento"
+    : detected
+      ? completed
+        ? "Posible caída detectada"
+        : "Posible caída en revisión"
+      : completed
+        ? "No se detectó una caída clara"
+        : "Analizando video";
   const reasons = analisisVideoCaida.fallReasons.length
     ? analisisVideoCaida.fallReasons
     : ["No se combinaron suficientes señales fuertes de descenso, postura baja y tronco horizontal."];
+  const contextNotes = getVideoContextNotes();
   const velocidad = analisisVideoCaida.maxHipDropSpeed.toFixed(3);
   const descensoMaximo = analisisVideoCaida.maxHipDropFromBaseline.toFixed(3);
+  const lateralMaximo = analisisVideoCaida.maxHipLateralShift.toFixed(3);
   const anguloActual = analisisVideoCaida.lastTrunkAngle.toFixed(1);
+  const rotacionMaxima = analisisVideoCaida.maxTrunkAngleDelta.toFixed(1);
   const anguloDeteccion = analisisVideoCaida.detectionTrunkAngle !== null
     ? analisisVideoCaida.detectionTrunkAngle.toFixed(1)
     : null;
   const descensoDeteccion = analisisVideoCaida.detectionHipDrop !== null
     ? analisisVideoCaida.detectionHipDrop.toFixed(3)
     : null;
+  const lateralDeteccion = analisisVideoCaida.detectionLateralShift.toFixed(3);
   const inicioRevision = detected
     ? Math.max(0, analisisVideoCaida.fallDetectedAt - 0.8)
     : null;
   const finRevision = detected ? analisisVideoCaida.fallDetectedAt + 0.4 : null;
-
-  resumenEl.innerHTML = `
-    <div class="resultado resultado-${color}">
-      <div class="resultado-badge">${detected ? "ALERTA" : "OK"}</div>
-      <div class="resultado-contenido">
-        <h2>${titulo}</h2>
+  const rotacionLabel = getVideoRotationLabel(analisisVideoCaida.maxTrunkAngleDelta);
+  const lateralLabel = getVideoLateralShiftLabel(analisisVideoCaida.maxHipLateralShift);
+  const detailsHtml = technicalMode
+    ? `
+        <p><strong>Modo:</strong> análisis técnico de movimiento.</p>
+        <p><strong>Contexto cargado:</strong> ${getVideoExpectedDirectionLabel()}.</p>
+        <p><strong>Velocidad máxima de descenso de pelvis:</strong> ${velocidad}</p>
+        <p><strong>Descenso máximo de pelvis respecto de la base:</strong> ${descensoMaximo}</p>
+        <p><strong>Desvío lateral máximo:</strong> ${lateralMaximo} (${lateralLabel})</p>
+        <p><strong>Cambio máximo de orientación del tronco:</strong> ${rotacionMaxima}° (${rotacionLabel})</p>
+        <p><strong>Ángulo de tronco más reciente:</strong> ${anguloActual}°</p>
+        ${detected
+          ? `
+            <p><strong>Momento destacado para revisión:</strong> ${formatSeconds(analisisVideoCaida.fallDetectedAt)}</p>
+            <p><strong>Métricas en ese instante:</strong> descenso ${descensoDeteccion}, desvío lateral ${lateralDeteccion}, tronco ${anguloDeteccion}°, postura baja ${analisisVideoCaida.detectionLowPostureFrames} cuadros.</p>
+            <p><strong>Ventana sugerida para revisión:</strong> ${formatSeconds(inicioRevision)} a ${formatSeconds(finRevision)}</p>
+          `
+          : completed
+            ? `<p><strong>Resultado:</strong> no apareció un pico tan claro como para marcar un único momento dominante; conviene revisar el video completo con cuadro a cuadro.</p>`
+            : `<p><strong>Estado:</strong> el movimiento sigue en análisis.</p>`}
+      `
+    : `
         <p><strong>Modo:</strong> análisis beta de video cargado manualmente.</p>
         <p><strong>Velocidad máxima de descenso de pelvis:</strong> ${velocidad}</p>
         <p><strong>Descenso máximo de pelvis respecto de la base:</strong> ${descensoMaximo}</p>
@@ -1908,20 +2060,40 @@ function renderResultadoVideoCaida() {
           ? `
             <p><strong>${completed ? "Mejor instante compatible" : "Mejor candidato hasta ahora"}:</strong> ${formatSeconds(analisisVideoCaida.fallDetectedAt)}</p>
             <p><strong>Estado del análisis:</strong> ${completed ? "video completo analizado" : "el video sigue corriendo; esta marca puede mejorar."}</p>
-            <p><strong>Métricas al detectar:</strong> descenso ${descensoDeteccion}, tronco ${anguloDeteccion}°, postura baja ${analisisVideoCaida.detectionLowPostureFrames} cuadros, horizontalidad ${analisisVideoCaida.detectionHorizontalFrames} cuadros, pérdida de tracking ${analisisVideoCaida.lostTrackingFrames} cuadros.</p>
+            <p><strong>Métricas al detectar:</strong> descenso ${descensoDeteccion}, desvío lateral ${lateralDeteccion}, tronco ${anguloDeteccion}°, postura baja ${analisisVideoCaida.detectionLowPostureFrames} cuadros, horizontalidad ${analisisVideoCaida.detectionHorizontalFrames} cuadros, pérdida de tracking ${analisisVideoCaida.lostTrackingFrames} cuadros.</p>
             <p><strong>Ventana sugerida para revisión:</strong> ${formatSeconds(inicioRevision)} a ${formatSeconds(finRevision)}</p>
           `
           : completed
             ? `<p><strong>Resultado:</strong> no apareció un patrón sostenido compatible con caída según la heurística actual.</p>
                <p><strong>Lectura útil:</strong> aunque no disparó la alerta, podés revisar si hubo giro brusco del tronco o pérdida breve del sujeto por oclusión.</p>`
             : `<p><strong>Estado:</strong> todavía no hay una conclusión final porque el video sigue en análisis.</p>`}
+      `;
+
+  resumenEl.innerHTML = `
+    <div class="resultado resultado-${color}">
+      <div class="resultado-badge">${technicalMode ? "ANÁLISIS" : detected ? "ALERTA" : "OK"}</div>
+      <div class="resultado-contenido">
+        <h2>${titulo}</h2>
+        ${detailsHtml}
+        ${contextNotes.length
+          ? `
+            <div class="resultado-detalle">
+              <p><strong>Contexto aportado por el usuario:</strong></p>
+              <ul>
+                ${contextNotes.map((item) => `<li>${item}</li>`).join("")}
+              </ul>
+            </div>
+          `
+          : ""}
         <div class="resultado-detalle">
-          <p><strong>Señales observadas:</strong></p>
+          <p><strong>${technicalMode ? "Señales útiles para revisión:" : "Señales observadas:"}</strong></p>
           <ul>
             ${reasons.map((item) => `<li>${item}</li>`).join("")}
           </ul>
         </div>
-        <p class="resultado-nota">Nota: este módulo es exploratorio. Sirve para revisar un video con pose tracking y una heurística inicial, pero no valida por sí solo una caída real ni reemplaza evaluación profesional.</p>
+        <p class="resultado-nota">${technicalMode
+          ? "Nota: este modo usa el mismo pose tracking para resumir el movimiento, pero no clasifica aprobación técnica ni interpreta el evento como caída clínica."
+          : "Nota: este módulo es exploratorio. Sirve para revisar un video con pose tracking y una heurística inicial, pero no valida por sí solo una caída real ni reemplaza evaluación profesional."}</p>
       </div>
     </div>
   `;
@@ -2021,10 +2193,15 @@ function updateVideoHelp(message = null) {
     return;
   }
 
+  if (sourceMode === "file") {
+    videoHelpEl.textContent = isTechnicalVideoAnalysisMode()
+      ? `Video cargado${uploadedVideoName ? `: ${uploadedVideoName}` : ""}. Elegí el contexto y usá 'Aplicar análisis' para revisar el movimiento sin clasificarlo como caída.`
+      : `Video cargado${uploadedVideoName ? `: ${uploadedVideoName}` : ""}. Usá 'Aplicar análisis' para correr la detección de caída con el modo seleccionado.`;
+    return;
+  }
+
   videoHelpEl.textContent =
-    sourceMode === "file"
-      ? "Video cargado. Reproducilo para revisar una posible caída."
-      : "Beta: cargá un video local para revisar una posible caída. No reemplaza evaluación clínica.";
+    "Beta: cargá un video local para revisar una posible caída o usar el modo análisis técnico.";
 }
 
 function syncSourceModeUi() {
@@ -2579,6 +2756,7 @@ function updateControls() {
   if (savePendingPatientButton) {
     savePendingPatientButton.disabled = !Boolean(centroEl?.value?.trim());
   }
+  updateApplyVideoModeButton();
   syncTestActionButtons();
   renderTestPhaseHelp();
 }
@@ -3101,6 +3279,7 @@ function analizarVideoCaida(landmarks) {
 
   if (analisisVideoCaida.baselineHipY === null) {
     analisisVideoCaida.baselineHipY = hipMidY;
+    analisisVideoCaida.baselineHipX = hipMidX;
     analisisVideoCaida.baselineTrunkAngle = trunkAngle;
     analisisVideoCaida.baselineFrames = 1;
     analisisVideoCaida.previousHipY = hipMidY;
@@ -3121,6 +3300,7 @@ function analizarVideoCaida(landmarks) {
     }
     analisisVideoCaida.baselineFrames += 1;
     analisisVideoCaida.baselineHipY = (analisisVideoCaida.baselineHipY * 0.85) + (hipMidY * 0.15);
+    analisisVideoCaida.baselineHipX = ((analisisVideoCaida.baselineHipX ?? hipMidX) * 0.85) + (hipMidX * 0.15);
     analisisVideoCaida.baselineTrunkAngle =
       ((analisisVideoCaida.baselineTrunkAngle ?? trunkAngle) * 0.85) + (trunkAngle * 0.15);
     analisisVideoCaida.previousHipY = hipMidY;
@@ -3128,6 +3308,7 @@ function analizarVideoCaida(landmarks) {
   }
 
   const hipDropFromBaseline = hipMidY - analisisVideoCaida.baselineHipY;
+  const hipLateralShift = Math.abs(hipMidX - (analisisVideoCaida.baselineHipX ?? hipMidX));
   const hipDropSpeed = hipMidY - (analisisVideoCaida.previousHipY ?? hipMidY);
   const trunkAngleDelta = Math.abs(trunkAngle - (analisisVideoCaida.baselineTrunkAngle ?? trunkAngle));
   analisisVideoCaida.previousHipY = hipMidY;
@@ -3135,6 +3316,14 @@ function analizarVideoCaida(landmarks) {
   analisisVideoCaida.maxHipDropFromBaseline = Math.max(
     analisisVideoCaida.maxHipDropFromBaseline,
     hipDropFromBaseline
+  );
+  analisisVideoCaida.maxHipLateralShift = Math.max(
+    analisisVideoCaida.maxHipLateralShift,
+    hipLateralShift
+  );
+  analisisVideoCaida.maxTrunkAngleDelta = Math.max(
+    analisisVideoCaida.maxTrunkAngleDelta,
+    trunkAngleDelta
   );
   analisisVideoCaida.lastTrunkAngle = trunkAngle;
   analisisVideoCaida.seatedBackwardPattern =
@@ -3261,12 +3450,17 @@ function registrarCaidaVideo(tiempo, hipDropFromBaseline, trunkAngle, reasons, s
   analisisVideoCaida.fallDetectedAt = tiempo;
   analisisVideoCaida.detectionHipDrop = hipDropFromBaseline;
   analisisVideoCaida.detectionTrunkAngle = trunkAngle;
+  analisisVideoCaida.detectionLateralShift = analisisVideoCaida.maxHipLateralShift;
   analisisVideoCaida.detectionLowPostureFrames = analisisVideoCaida.lowPostureFrames;
   analisisVideoCaida.detectionHorizontalFrames = analisisVideoCaida.horizontalFrames;
   analisisVideoCaida.fallReasons = reasons;
   analisisVideoCaida.analysisCompleted = false;
 
-  setStatus(`Posible caída candidata cerca de ${formatSeconds(tiempo)}. El análisis sigue hasta el final del video.`);
+  setStatus(
+    isTechnicalVideoAnalysisMode()
+      ? `Momento destacado detectado cerca de ${formatSeconds(tiempo)}. El análisis sigue hasta el final del video.`
+      : `Posible caída candidata cerca de ${formatSeconds(tiempo)}. El análisis sigue hasta el final del video.`
+  );
 }
 
 function nuevoTest() {
@@ -3612,8 +3806,9 @@ async function startVideoAnalysis(file) {
   sourceMode = "file";
   syncSourceModeUi();
   analisisVideoCaida = crearAnalisisVideoCaida();
+  uploadedVideoName = file.name || "";
   limpiarResumen();
-  updateVideoHelp(`Video cargado: ${file.name}. Reproducilo y el sistema marcará una posible caída si encuentra el patrón.`);
+  updateVideoHelp();
 
   if (uploadedVideoUrl) {
     URL.revokeObjectURL(uploadedVideoUrl);
@@ -3625,25 +3820,22 @@ async function startVideoAnalysis(file) {
   videoElement.muted = true;
   videoElement.controls = true;
   videoElement.loop = false;
+  videoElement.pause();
+  videoElement.currentTime = 0;
 
-  try {
-    await videoElement.play();
-  } catch (error) {
-    console.warn("La reproducción automática fue bloqueada", error);
-  }
-
-  cameraRunning = true;
+  cameraRunning = false;
   processing = false;
   toggleButton.textContent = "Encender cámara";
   updateControls();
   cancelAnimationFrame(animationId);
-  scheduleVideoFrameProcessing();
-  setStatus("Analizando video local. Podés pausar o volver a reproducir para revisar el tramo detectado.");
+  cancelVideoFrameProcessing();
+  setStatus("Video cargado. Elegí el modo y presioná 'Aplicar análisis'.");
   smoothScrollToElement(statusEl, "center");
   smoothScrollToElement(canvasElement, "center");
   updateFallAlertChip();
   updateReplayEventButton();
   updateFrameStepButtons();
+  updateApplyVideoModeButton();
 }
 
 function stopCamera(options = {}) {
@@ -3672,6 +3864,7 @@ function stopCamera(options = {}) {
     URL.revokeObjectURL(uploadedVideoUrl);
     uploadedVideoUrl = null;
   }
+  uploadedVideoName = "";
   timerEl.textContent = "0.0 s";
   if (!preserveSummary) {
     limpiarResumen();
@@ -3683,6 +3876,7 @@ function stopCamera(options = {}) {
   updateFallAlertChip();
   updateReplayEventButton();
   updateFrameStepButtons();
+  updateApplyVideoModeButton();
   updateVideoHelp();
   renderStandbyScreen(
     preserveSummary
@@ -3806,6 +4000,27 @@ loadVideoButton?.addEventListener("click", () => {
   videoFileInputEl?.click();
 });
 
+applyVideoModeButton?.addEventListener("click", async () => {
+  await applyVideoAnalysis();
+});
+
+videoAnalysisModeEl?.addEventListener("change", async () => {
+  updateVideoHelp();
+  updateFallAlertChip();
+  rerenderVideoSummaryIfVisible();
+  if (sourceMode === "file" && (uploadedVideoUrl || videoElement?.src)) {
+    await applyVideoAnalysis({ autoplay: false });
+  }
+});
+
+videoExpectedDirectionEl?.addEventListener("change", () => {
+  rerenderVideoSummaryIfVisible();
+});
+
+videoHeadFocusEl?.addEventListener("input", () => {
+  rerenderVideoSummaryIfVisible();
+});
+
 csvFileInputEl?.addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -3848,7 +4063,11 @@ videoElement?.addEventListener("play", () => {
   cancelAnimationFrame(animationId);
   scheduleVideoFrameProcessing();
   updateControls();
-  setStatus("Analizando video local en reproducción.");
+  setStatus(
+    isTechnicalVideoAnalysisMode()
+      ? "Analizando video técnico en reproducción."
+      : "Analizando video local en reproducción."
+  );
   updateFallAlertChip();
   updateReplayEventButton();
   updateFrameStepButtons();
@@ -3866,7 +4085,11 @@ videoElement?.addEventListener("pause", () => {
     renderResultadoVideoCaida();
   }
   updateControls();
-  setStatus("Video en pausa. Lo mostrado es un resultado parcial; podés reanudar para completar el análisis.");
+  setStatus(
+    isTechnicalVideoAnalysisMode()
+      ? "Video en pausa. Podés seguir analizando cuadro a cuadro o reanudar la reproducción."
+      : "Video en pausa. Lo mostrado es un resultado parcial; podés reanudar para completar el análisis."
+  );
   updateFallAlertChip();
   updateReplayEventButton();
   updateFrameStepButtons();
@@ -3896,7 +4119,9 @@ videoElement?.addEventListener("ended", () => {
   updateControls();
   setStatus(
     analisisVideoCaida?.fallDetectedAt !== null
-      ? "Análisis del video finalizado. El video quedó pausado cerca del mejor instante compatible con caída."
+      ? isTechnicalVideoAnalysisMode()
+        ? "Análisis del video finalizado. El video quedó pausado cerca del momento más útil para revisar."
+        : "Análisis del video finalizado. El video quedó pausado cerca del mejor instante compatible con caída."
       : "Análisis del video finalizado."
   );
   updateFallAlertChip();

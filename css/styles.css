@@ -300,6 +300,14 @@ button:disabled {
   border: 1px solid rgba(217, 119, 6, 0.18);
 }
 
+.video-analysis-settings {
+  margin-top: 16px;
+}
+
+.video-analysis-actions {
+  margin-top: 12px;
+}
+
 .patient-help {
   margin-top: 16px;
   color: #664a00;

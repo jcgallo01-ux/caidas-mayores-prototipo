@@ -214,6 +214,32 @@
                 <input id="videoFileInput" type="file" accept="video/*" hidden>
               </div>
               <div id="videoHelp" class="video-help"></div>
+              <div class="fila video-analysis-settings">
+                <div class="campo">
+                  <label for="videoAnalysisMode">Modo de video</label>
+                  <select id="videoAnalysisMode">
+                    <option value="fall">Detección de caída</option>
+                    <option value="analysis">Análisis técnico</option>
+                  </select>
+                </div>
+                <div class="campo">
+                  <label for="videoExpectedDirection">Tipo / dirección esperada</label>
+                  <select id="videoExpectedDirection">
+                    <option value="">Sin especificar</option>
+                    <option value="forward">Hacia adelante</option>
+                    <option value="backward">Hacia atrás</option>
+                    <option value="lateral">Hacia un costado</option>
+                    <option value="rotation">Con rotación</option>
+                  </select>
+                </div>
+                <div class="campo campo-amplio">
+                  <label for="videoHeadFocus">Cabeza / foco de observación</label>
+                  <input id="videoHeadFocus" type="text" placeholder="Ej. observar protección de cabeza o alineación cervical">
+                </div>
+              </div>
+              <div class="acciones video-analysis-actions">
+                <button id="applyVideoMode" type="button">Aplicar análisis</button>
+              </div>
             </div>
           </div>
 
