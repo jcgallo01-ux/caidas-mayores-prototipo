@@ -49,6 +49,7 @@ const FRAMES_INICIO = 2;
 const FRAMES_FIN = 2;
 const BASELINE_FRAMES_MIN = 12;
 const VISIBILIDAD_MINIMA = 0.6;
+const VISIBILIDAD_MINIMA_VIDEO = 0.45;
 const MIN_TEST_SECONDS = 3;
 const FRAMES_EVENTO = 4;
 const FRAMES_ESTABILIDAD_INICIO = 4;
@@ -60,14 +61,14 @@ const UMBRAL_BALANCEO_TRONCO = 0.045;
 const UMBRAL_CAIDA_PELVIS = 0.03;
 const UMBRAL_BRAZOS_ABIERTOS = 1.75;
 const UMBRAL_CONTACTO_PIERNAS = 0.12;
-const BASELINE_VIDEO_FRAMES_MIN = 8;
-const UMBRAL_CAIDA_VIDEO_VELOCIDAD = 0.014;
+const BASELINE_VIDEO_FRAMES_MIN = 5;
+const UMBRAL_CAIDA_VIDEO_VELOCIDAD = 0.01;
 const UMBRAL_CAIDA_VIDEO_DESCENSO = 0.1;
 const UMBRAL_CAIDA_VIDEO_HORIZONTAL = 45;
-const UMBRAL_CAIDA_VIDEO_HORIZONTAL_MODERADA = 32;
+const UMBRAL_CAIDA_VIDEO_HORIZONTAL_MODERADA = 24;
 const UMBRAL_CAIDA_VIDEO_POSTURA_BAJA = 0.62;
-const UMBRAL_CAIDA_VIDEO_DESCENSO_FUERTE = 0.075;
-const UMBRAL_CAIDA_VIDEO_CAMBIO_ANGULO_MODERADO = 18;
+const UMBRAL_CAIDA_VIDEO_DESCENSO_FUERTE = 0.055;
+const UMBRAL_CAIDA_VIDEO_CAMBIO_ANGULO_MODERADO = 14;
 const FRAMES_CAIDA_VIDEO = 3;
 const UMBRAL_CAIDA_VIDEO_ANGULO_SEDESTACION = 105;
 const UMBRAL_CAIDA_VIDEO_CAMBIO_ANGULO = 35;
@@ -76,6 +77,10 @@ const FRAMES_PERDIDA_TRACKING = 2;
 const UMBRAL_CAIDA_VIDEO_ANGULO_RETROCESO = 95;
 const UMBRAL_CAIDA_VIDEO_CAMBIO_ANGULO_RETROCESO = 22;
 const UMBRAL_CAIDA_VIDEO_VELOCIDAD_RETROCESO = 0.02;
+const UMBRAL_CAIDA_VIDEO_POSTURA_BAJA_MODERADA = 0.57;
+const UMBRAL_CAIDA_VIDEO_DESCENSO_MODERADO = 0.045;
+const UMBRAL_CAIDA_VIDEO_CAMBIO_ANGULO_SUAVE = 10;
+const VIDEO_FRAME_STEP_SECONDS = 1 / 30;
 const SIT_TO_STAND_REPETICIONES_OBJETIVO = 5;
 const SIT_TO_STAND_FRAMES_ESTABLES = 3;
 const SIT_TO_STAND_ANGULO_RODILLA_SENTADO_MIN = 55;
@@ -185,6 +190,7 @@ const patientSearchCenterEl = document.getElementById("patientSearchCenter");
 const patientSelectEl = document.getElementById("patientSelect");
 const newPatientButton = document.getElementById("newPatient");
 const savePatientButton = document.getElementById("savePatient");
+const savePendingPatientButton = document.getElementById("savePendingPatient");
 const importCsvButton = document.getElementById("importCsv");
 const csvFileInputEl = document.getElementById("csvFileInput");
 const videoFileInputEl = document.getElementById("videoFileInput");
@@ -195,7 +201,11 @@ const toggleSidebarButton = document.getElementById("toggleSidebar");
 
 const statusEl = document.getElementById("status");
 const timerEl = document.getElementById("timer");
+const fallAlertChip = document.getElementById("fallAlertChip");
 const reviewResultButton = document.getElementById("reviewResult");
+const replayEventButton = document.getElementById("replayEvent");
+const prevFrameButton = document.getElementById("prevFrame");
+const nextFrameButton = document.getElementById("nextFrame");
 const resumenEl = document.getElementById("resumen");
 const patientCodeEl = document.getElementById("patientCode");
 const nombrePacienteEl = document.getElementById("nombrePaciente");
@@ -207,7 +217,6 @@ const edadCalculadaEl = document.getElementById("edadCalculada");
 const sexoPacienteEl = document.getElementById("sexoPaciente");
 const centroEl = document.getElementById("centro");
 const pruebaEl = document.getElementById("prueba");
-const ladoApoyoEl = document.getElementById("ladoApoyo");
 const observacionesEl = document.getElementById("observaciones");
 
 // ---------- Persistencia / paciente ----------
@@ -232,6 +241,17 @@ function formatPatientCode(sequenceNumber) {
   return `P-${String(sequenceNumber).padStart(4, "0")}`;
 }
 
+function isPendingPatient(patient) {
+  return Boolean(patient?.pending);
+}
+
+function getPatientDisplayName(patient) {
+  if (!patient) return "Paciente";
+  if (patient.nombre) return patient.nombre;
+  if (isPendingPatient(patient)) return "Pendiente de completar";
+  return "Paciente sin nombre";
+}
+
 function parseStoredRegistry(rawValue) {
   if (!rawValue) return { patients: [], tests: [] };
 
@@ -252,7 +272,8 @@ function loadRegistry() {
   patientRegistry.patients = patientRegistry.patients.map((patient, index) => ({
     ...patient,
     patientCode: patient.patientCode || formatPatientCode(index + 1),
-    edad: Number.isFinite(Number(patient.edad)) ? Number(patient.edad) : null
+    edad: Number.isFinite(Number(patient.edad)) ? Number(patient.edad) : null,
+    pending: Boolean(patient.pending)
   }));
 }
 
@@ -435,14 +456,21 @@ function hasUnsavedPatientDraft() {
   return !currentPatientId && hasPatientFormDraft();
 }
 
-function validatePatientData() {
+function validatePatientData(options = {}) {
+  const { allowPending = false } = options;
   const patient = getPatientPayloadFromForm();
 
   if (!patient.nombre) {
+    if (allowPending && patient.centro) {
+      return { ok: true, patient: { ...patient, pending: true } };
+    }
     return { ok: false, message: "Antes de iniciar el test, cargue el nombre del paciente." };
   }
 
   if (!patient.fechaNacimiento && patient.edad === null) {
+    if (allowPending && patient.centro) {
+      return { ok: true, patient: { ...patient, pending: true } };
+    }
     return {
       ok: false,
       message: "Antes de iniciar el test, cargue la fecha de nacimiento o importe una edad válida para el paciente."
@@ -463,9 +491,18 @@ function findPatientById(patientId) {
   return patientRegistry.patients.find((patient) => patient.id === patientId) || null;
 }
 
-function findPatientByCode(patientCode) {
+function findPatientByCode(patientCode, center = "") {
   const normalizedCode = normalizeText(patientCode);
   if (!normalizedCode) return null;
+  const normalizedCenter = normalizeText(center);
+  if (normalizedCenter) {
+    const byCenter = patientRegistry.patients.find(
+      (patient) =>
+        normalizeText(patient.patientCode) === normalizedCode &&
+        normalizeText(patient.centro) === normalizedCenter
+    );
+    if (byCenter) return byCenter;
+  }
   return patientRegistry.patients.find((patient) => normalizeText(patient.patientCode) === normalizedCode) || null;
 }
 
@@ -475,7 +512,19 @@ function findPatientByIdentifier(identifier) {
   return patientRegistry.patients.find((patient) => normalizeText(patient.identificador) === normalizedIdentifier) || null;
 }
 
-function getNextPatientCode() {
+function getNextPatientCode(center = "") {
+  const normalizedCenter = normalizeText(center);
+  if (normalizedCenter) {
+    const maxSequenceByCenter = patientRegistry.patients.reduce((maxValue, patient) => {
+      if (normalizeText(patient.centro) !== normalizedCenter) return maxValue;
+      const match = String(patient.patientCode || "").match(/(\d+)$/);
+      const numericValue = match ? Number(match[1]) : 0;
+      return Math.max(maxValue, Number.isFinite(numericValue) ? numericValue : 0);
+    }, 0);
+
+    return String(maxSequenceByCenter + 1);
+  }
+
   const maxSequence = patientRegistry.patients.reduce((maxValue, patient) => {
     const match = String(patient.patientCode || "").match(/(\d+)$/);
     const numericValue = match ? Number(match[1]) : 0;
@@ -500,7 +549,7 @@ function findMatchingPatient(patientData) {
   }
 
   if (patientCode) {
-    const byCode = findPatientByCode(patientCode);
+    const byCode = findPatientByCode(patientCode, center);
     if (byCode) return byCode;
   }
 
@@ -541,7 +590,7 @@ function upsertPatient(patientData) {
 
   const mergedPatient = {
     id: existingPatient?.id || patientData.id || createId("patient"),
-    patientCode: existingPatient?.patientCode || patientData.patientCode || getNextPatientCode(),
+    patientCode: existingPatient?.patientCode || patientData.patientCode || getNextPatientCode(patientData.centro),
     nombre: patientData.nombre,
     fechaNacimiento: patientData.fechaNacimiento || "",
     edad,
@@ -549,6 +598,7 @@ function upsertPatient(patientData) {
     sexo: patientData.sexo || "",
     centro: patientData.centro || "",
     observaciones: patientData.observaciones || "",
+    pending: Boolean(patientData.pending && !patientData.nombre),
     updatedAt: new Date().toISOString()
   };
 
@@ -617,14 +667,6 @@ function getRangoReferenciaPorEdad(edad) {
 
 function getPruebaActual() {
   return pruebaEl?.value || "monopedia";
-}
-
-function getLadoApoyoMonopedia() {
-  return ladoApoyoEl?.value === "left" ? "left" : "right";
-}
-
-function getEtiquetaLadoApoyo(ladoApoyo) {
-  return ladoApoyo === "left" ? "izquierda" : "derecha";
 }
 
 function getNombrePrueba(prueba) {
@@ -725,7 +767,7 @@ function fillPatientForm(patient) {
 
   currentPatientId = patient.id;
   if (patientCodeEl) patientCodeEl.value = patient.patientCode || "";
-  nombrePacienteEl.value = patient.nombre || "";
+  nombrePacienteEl.value = isPendingPatient(patient) ? "" : patient.nombre || "";
   setBirthDateInputValue(patient.fechaNacimiento || "");
   if (patientIdentifierEl) patientIdentifierEl.value = patient.identificador || "";
   sexoPacienteEl.value = patient.sexo || "";
@@ -772,14 +814,15 @@ function renderPatientHelp(message = null) {
     hasUnsavedPatientDraft() && validation.ok
       ? " La ficha todavía no está guardada: use 'Guardar ficha' para que aparezca en la búsqueda e historial."
       : "";
-  const ladoApoyoTexto =
-    pruebaActual === "monopedia"
-      ? ` en apoyo ${getEtiquetaLadoApoyo(getLadoApoyoMonopedia())}`
-      : "";
+  const selectedPatient = getSelectedPatient();
   const text = message
-    || (validation.ok
-      ? `Paciente listo${currentPatientId ? ` (${findPatientById(currentPatientId)?.patientCode || ""})` : ""}. Ya puede iniciar la prueba${ladoApoyoTexto} y guardar el resultado.${guiaPrueba}${draftText}`
-      : `Complete nombre y fecha de nacimiento para habilitar la prueba. El sistema asigna un ID único al guardar.${guiaPrueba}`);
+    || (
+      selectedPatient && isPendingPatient(selectedPatient)
+        ? `Ficha pendiente ${selectedPatient.patientCode || ""} seleccionada. Puede tomar estudios ahora y completar los datos del paciente más tarde.${guiaPrueba}`
+        : validation.ok
+          ? `Paciente listo${currentPatientId ? ` (${findPatientById(currentPatientId)?.patientCode || ""})` : ""}. Ya puede iniciar la prueba y guardar el resultado.${guiaPrueba}${draftText}`
+          : `Complete nombre y fecha de nacimiento para habilitar la prueba, o use 'Asignar ID pendiente' para trabajo de campo.${guiaPrueba}`
+    );
 
   patientHelpEl.textContent = `${text}${duplicateText}`;
 }
@@ -810,7 +853,7 @@ function renderPatientSelect() {
   const searchCenter = normalizeText(patientSearchCenterEl?.value || "");
   const options = ['<option value="">Nuevo paciente</option>'];
   const patients = [...patientRegistry.patients].sort((a, b) =>
-    a.nombre.localeCompare(b.nombre, "es")
+    getPatientDisplayName(a).localeCompare(getPatientDisplayName(b), "es")
   );
 
   const filteredPatients = patients
@@ -825,7 +868,7 @@ function renderPatientSelect() {
     .forEach((patient) => {
       const edad = getPatientAge(patient);
       const identificadorLabel = patient.identificador ? ` | ${patient.identificador}` : "";
-      const label = `${patient.patientCode || "Sin ID"}${identificadorLabel} | ${patient.nombre}${edad !== null ? ` (${edad} años)` : ""}`;
+      const label = `${patient.patientCode || "Sin ID"}${identificadorLabel} | ${getPatientDisplayName(patient)}${edad !== null ? ` (${edad} años)` : ""}${isPendingPatient(patient) ? " [pendiente]" : ""}`;
       const selected = patient.id === currentPatientId ? " selected" : "";
       options.push(`<option value="${escapeHtml(patient.id)}"${selected}>${escapeHtml(label)}</option>`);
     });
@@ -913,12 +956,8 @@ function getComparisonHighlights(tests) {
           : delta > 0
             ? `cambio de +${delta.toFixed(1)} s`
             : `cambio de ${delta.toFixed(1)} s`;
-      const ladoTexto =
-        key === "monopedia" && last.ladoApoyo
-          ? ` (${getEtiquetaLadoApoyo(last.ladoApoyo)})`
-          : "";
 
-      return `${getNombrePrueba(last.prueba)}${ladoTexto}: ${ordered.length} registros, ${trendLabel} entre el primer y el último estudio cargado.`;
+      return `${getNombrePrueba(last.prueba)}: ${ordered.length} registros, ${trendLabel} entre el primer y el último estudio cargado.`;
     });
 }
 
@@ -939,11 +978,11 @@ function renderPatientHistory() {
 
   if (!tests.length) {
     historyPanelEl.innerHTML = `
-      <h3>Resultados previos de ${escapeHtml(patient.nombre)}</h3>
+      <h3>Resultados previos de ${escapeHtml(getPatientDisplayName(patient))}</h3>
       <div class="history-summary">
         <p><span class="history-id">ID paciente: ${escapeHtml(patient.patientCode || "Sin ID")}</span></p>
         <p><strong>DNI / HC:</strong> ${escapeHtml(patient.identificador || "No informado")}</p>
-        <p>La ficha está creada, pero todavía no hay estudios guardados.</p>
+        <p>${isPendingPatient(patient) ? "Ficha pendiente creada. Puede cargar datos definitivos cuando los tenga." : "La ficha está creada, pero todavía no hay estudios guardados."}</p>
       </div>
       <div class="history-empty">Sin resultados previos cargados.</div>
     `;
@@ -955,7 +994,7 @@ function renderPatientHistory() {
   const riskLabel = aggregateRisk.color === "gris" ? "SIN DATO" : aggregateRisk.color.toUpperCase();
 
   historyPanelEl.innerHTML = `
-    <h3>Resultados previos de ${escapeHtml(patient.nombre)}</h3>
+    <h3>Resultados previos de ${escapeHtml(getPatientDisplayName(patient))}</h3>
     <div class="history-summary">
       <p><span class="history-id">ID paciente: ${escapeHtml(patient.patientCode || "Sin ID")}</span></p>
       <p><strong>DNI / HC:</strong> ${escapeHtml(patient.identificador || "No informado")}</p>
@@ -983,7 +1022,7 @@ function renderPatientHistory() {
               (test) => `
                 <tr>
                   <td>${escapeHtml(formatDateTime(test.timestamp))}</td>
-                  <td>${escapeHtml(getNombrePrueba(test.prueba || "monopedia"))}${test.prueba === "monopedia" && test.ladoApoyo ? ` (${escapeHtml(getEtiquetaLadoApoyo(test.ladoApoyo))})` : ""}</td>
+                  <td>${escapeHtml(getNombrePrueba(test.prueba || "monopedia"))}</td>
                   <td>${escapeHtml(test.resultadoTitulo || "Sin clasificación")}</td>
                   <td>${escapeHtml(formatSeconds(test.tiempoSegundos))}</td>
                   <td><span class="history-risk ${escapeHtml(test.resultadoColor || "")}">${escapeHtml((test.resultadoColor || "sin dato").toUpperCase())}</span></td>
@@ -1034,7 +1073,6 @@ function downloadCsv() {
     "sexo",
     "centro",
     "prueba",
-    "lado_apoyo",
     "observaciones",
     "tiempo_segundos",
     "resultado_nivel",
@@ -1055,7 +1093,6 @@ function downloadCsv() {
       test.sexo,
       test.centro,
       test.prueba,
-      test.ladoApoyo || "",
       test.observaciones,
       Number(test.tiempoSegundos).toFixed(1),
       test.resultadoNivel,
@@ -1308,7 +1345,6 @@ function importTestsFromRows(rows) {
       sexo: patient.sexo || patientData.sexo || "",
       centro: patient.centro || patientData.centro || "",
       prueba,
-      ladoApoyo: getCsvValue(row, ["lado_apoyo", "lado apoyo", "pierna_apoyo", "pierna de apoyo"]) || "",
       observaciones: patientData.observaciones || "",
       tiempoSegundos,
       resultadoNivel: getCsvValue(row, ["resultado_nivel"]) || resultado.nivel,
@@ -1426,6 +1462,9 @@ function limpiarResumen() {
   resumenEl.innerHTML = "Sin datos todavía.";
   resumenEl.style.display = "none";
   updateReviewResultButton();
+  updateFallAlertChip();
+  updateReplayEventButton();
+  updateFrameStepButtons();
 }
 
 function registrarEventoAnalisis(clave, tiempoSegundos) {
@@ -1557,6 +1596,34 @@ function savePatientFromForm(options = {}) {
   return patient;
 }
 
+function savePendingPatientFromForm() {
+  const patientData = getPatientPayloadFromForm();
+
+  if (!patientData.centro) {
+    const message = "Indique el centro antes de asignar un ID pendiente.";
+    renderPatientHelp(message);
+    setStatus(message);
+    updateControls();
+    return null;
+  }
+
+  const patient = upsertPatient({
+    ...patientData,
+    pending: true,
+    nombre: "",
+    fechaNacimiento: "",
+    edad: null,
+    identificador: ""
+  });
+
+  fillPatientForm(patient);
+  renderPatientHelp(`ID pendiente ${patient.patientCode || ""} asignado. Ya puede iniciar el test y completar los datos del paciente más tarde.`);
+  renderPatientHistory();
+  updateControls();
+  setStatus(`Ficha pendiente creada: ${patient.patientCode || "Sin ID"}.`);
+  return patient;
+}
+
 function confirmSavePatientDraftIfNeeded() {
   if (!hasUnsavedPatientDraft()) return true;
 
@@ -1583,13 +1650,56 @@ function updateReviewResultButton() {
   reviewResultButton.hidden = !(lastCompletedTestRecord || hasRenderedSummary);
 }
 
+function updateReplayEventButton() {
+  if (!replayEventButton) return;
+
+  replayEventButton.hidden = !(
+    sourceMode === "file" &&
+    analisisVideoCaida &&
+    analisisVideoCaida.fallDetectedAt !== null
+  );
+}
+
+function updateFallAlertChip() {
+  if (!fallAlertChip) return;
+
+  fallAlertChip.hidden = !(
+    sourceMode === "file" &&
+    analisisVideoCaida &&
+    analisisVideoCaida.fallDetectedAt !== null
+  );
+}
+
+function updateFrameStepButtons() {
+  const show = sourceMode === "file" && Boolean(videoElement?.src || uploadedVideoUrl);
+  if (prevFrameButton) prevFrameButton.hidden = !show;
+  if (nextFrameButton) nextFrameButton.hidden = !show;
+}
+
+function stepVideoFrame(direction = 1) {
+  if (sourceMode !== "file") return;
+  videoElement.pause();
+  const delta = VIDEO_FRAME_STEP_SECONDS * Math.sign(direction || 1);
+  videoElement.currentTime = Math.max(0, (videoElement.currentTime || 0) + delta);
+}
+
+async function renderCurrentVideoFrame() {
+  if (sourceMode !== "file") return;
+  if (processing || videoElement.readyState < 2) return;
+
+  processing = true;
+  try {
+    await pose.send({ image: videoElement });
+  } finally {
+    processing = false;
+  }
+}
+
 function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFin = null) {
   if (!resumenEl) return;
 
   const edad = patientData.edad;
-  const nombrePaciente = patientData.nombre || "Paciente";
-  const ladoApoyo = getLadoApoyoMonopedia();
-  const etiquetaLadoApoyo = getEtiquetaLadoApoyo(ladoApoyo);
+  const nombrePaciente = patientData.nombre || getPatientDisplayName(patient);
   const resultado = clasificarRiesgoMonopedia(tiempoSegundos, edad);
   const eventos = analisisMonopedia?.eventos ?? crearAnalisisMonopedia().eventos;
   const interpretaciones = getInterpretacionesCompensaciones(eventos, motivoFin);
@@ -1630,7 +1740,6 @@ function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFi
       <div class="resultado-contenido">
         <h2>${resultado.titulo}</h2>
         <p><strong>${nombrePaciente}</strong>${edad !== null ? `, ${edad} años` : ""}</p>
-        <p><strong>Pierna de apoyo evaluada:</strong> ${etiquetaLadoApoyo}</p>
         <p><strong>Tiempo registrado:</strong> ${formatSeconds(tiempoSegundos)}</p>
         ${detalleMotivoFin}
         <p><strong>Interpretación:</strong> ${resultado.detalle}</p>
@@ -1653,13 +1762,12 @@ function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFi
       patientId: patient.id,
       patientCode: patient.patientCode || "",
       patientIdentifier: patient.identificador || "",
-      patientName: patient.nombre,
+      patientName: getPatientDisplayName(patient),
       fechaNacimiento: patient.fechaNacimiento,
       edad,
       sexo: patient.sexo || "",
       centro: centroEl?.value?.trim() || "",
       prueba: "monopedia",
-      ladoApoyo,
       observaciones: observacionesEl?.value?.trim() || "",
       tiempoSegundos,
       resultadoNivel: resultado.nivel,
@@ -1676,7 +1784,7 @@ function renderResultadoSitToStand(patient, patientData, tiempoSegundos, motivoF
   if (!resumenEl) return;
 
   const edad = patientData.edad;
-  const nombrePaciente = patientData.nombre || "Paciente";
+  const nombrePaciente = patientData.nombre || getPatientDisplayName(patient);
   const resultado = clasificarRiesgoSitToStand(tiempoSegundos, edad);
   const referenciaTexto =
     resultado.referencia.umbralNormal === null
@@ -1722,7 +1830,7 @@ function renderResultadoSitToStand(patient, patientData, tiempoSegundos, motivoF
       patientId: patient.id,
       patientCode: patient.patientCode || "",
       patientIdentifier: patient.identificador || "",
-      patientName: patient.nombre,
+      patientName: getPatientDisplayName(patient),
       fechaNacimiento: patient.fechaNacimiento,
       edad,
       sexo: patient.sexo || "",
@@ -1743,7 +1851,7 @@ function renderResultadoSitToStand(patient, patientData, tiempoSegundos, motivoF
 function renderResultadoFinal(tiempoSegundos, motivoFin = null, prueba = getPruebaActual()) {
   if (!resumenEl) return;
 
-  const validation = validatePatientData();
+  const validation = validatePatientData({ allowPending: true });
   const patientData = validation.ok ? validation.patient : getPatientPayloadFromForm();
   const patient = validation.ok ? upsertPatient(patientData) : null;
 
@@ -1819,7 +1927,8 @@ function renderResultadoVideoCaida() {
   `;
 
   resumenEl.style.display = "block";
-  smoothScrollToElement(resumenEl, "start");
+  updateFallAlertChip();
+  updateReplayEventButton();
 }
 
 // ---------- Utilidades ----------
@@ -2459,13 +2568,16 @@ function syncTestActionButtons() {
 }
 
 function updateControls() {
-  const patientReady = validatePatientData().ok;
+  const patientReady = validatePatientData({ allowPending: true }).ok;
   const cameraModeActive = cameraRunning && sourceMode === "camera";
   startTestButton.disabled = !cameraModeActive || !patientReady;
   nuevoTestButton.disabled = !cameraModeActive || !patientReady;
   stopTestButton.disabled = !cameraModeActive || !testRunning;
   if (savePatientButton) {
-    savePatientButton.disabled = !patientReady;
+    savePatientButton.disabled = !validatePatientData().ok;
+  }
+  if (savePendingPatientButton) {
+    savePendingPatientButton.disabled = !Boolean(centroEl?.value?.trim());
   }
   syncTestActionButtons();
   renderTestPhaseHelp();
@@ -2474,7 +2586,7 @@ function updateControls() {
 function renderTestPhaseHelp() {
   if (!testPhaseHelpEl) return;
 
-  const patientReady = validatePatientData().ok;
+  const patientReady = validatePatientData({ allowPending: true }).ok;
   const pruebaActual = getPruebaActual();
 
   if (!cameraRunning || sourceMode !== "camera") {
@@ -2483,7 +2595,7 @@ function renderTestPhaseHelp() {
   }
 
   if (!patientReady) {
-    testPhaseHelpEl.textContent = "Complete paciente y fecha de nacimiento antes de iniciar.";
+    testPhaseHelpEl.textContent = "Complete paciente y fecha de nacimiento, o asigne un ID pendiente para trabajo de campo.";
     return;
   }
 
@@ -2550,7 +2662,7 @@ function prepararTest() {
     return;
   }
 
-  const validation = validatePatientData();
+  const validation = validatePatientData({ allowPending: true });
   if (!validation.ok) {
     renderPatientHelp(validation.message);
     setStatus(validation.message);
@@ -2582,7 +2694,7 @@ function prepararTest() {
     return;
   }
 
-  setStatus(`Preparando monopedia en apoyo ${getEtiquetaLadoApoyo(getLadoApoyoMonopedia())}...`);
+  setStatus("Preparando...");
   updateControls();
 }
 
@@ -2970,7 +3082,7 @@ function analizarVideoCaida(landmarks) {
   }
 
   const landmarksCriticos = [leftShoulder, rightShoulder, leftHip, rightHip];
-  if (landmarksCriticos.some((landmark) => (landmark.visibility ?? 1) < VISIBILIDAD_MINIMA)) {
+  if (landmarksCriticos.some((landmark) => (landmark.visibility ?? 1) < VISIBILIDAD_MINIMA_VIDEO)) {
     analisisVideoCaida.lostTrackingFrames += 1;
     return;
   }
@@ -2992,6 +3104,17 @@ function analizarVideoCaida(landmarks) {
   }
 
   if (analisisVideoCaida.baselineFrames < BASELINE_VIDEO_FRAMES_MIN) {
+    const hipDropSpeedEarly = hipMidY - (analisisVideoCaida.previousHipY ?? hipMidY);
+    const trunkAngleDeltaEarly = Math.abs(trunkAngle - (analisisVideoCaida.baselineTrunkAngle ?? trunkAngle));
+    if (
+      analisisVideoCaida.baselineFrames >= 2 &&
+      hipDropSpeedEarly > UMBRAL_CAIDA_VIDEO_VELOCIDAD_SEDESTACION &&
+      trunkAngleDeltaEarly > UMBRAL_CAIDA_VIDEO_CAMBIO_ANGULO_SUAVE
+    ) {
+      analisisVideoCaida.strongMotionCandidateAt = videoElement.currentTime || 0;
+      analisisVideoCaida.detectionHipDrop = hipMidY - analisisVideoCaida.baselineHipY;
+      analisisVideoCaida.detectionTrunkAngle = trunkAngle;
+    }
     analisisVideoCaida.baselineFrames += 1;
     analisisVideoCaida.baselineHipY = (analisisVideoCaida.baselineHipY * 0.85) + (hipMidY * 0.15);
     analisisVideoCaida.baselineTrunkAngle =
@@ -3019,6 +3142,9 @@ function analizarVideoCaida(landmarks) {
     trunkAngle > UMBRAL_CAIDA_VIDEO_ANGULO_RETROCESO &&
     trunkAngleDelta > UMBRAL_CAIDA_VIDEO_CAMBIO_ANGULO_RETROCESO;
   const moderateHorizontal = trunkAngle > UMBRAL_CAIDA_VIDEO_HORIZONTAL_MODERADA;
+  const moderateLowPosture =
+    hipMidY > UMBRAL_CAIDA_VIDEO_POSTURA_BAJA_MODERADA ||
+    hipDropFromBaseline > UMBRAL_CAIDA_VIDEO_DESCENSO_MODERADO;
   const strongFallCandidate =
     hipDropSpeed > UMBRAL_CAIDA_VIDEO_VELOCIDAD &&
     hipDropFromBaseline > UMBRAL_CAIDA_VIDEO_DESCENSO_FUERTE &&
@@ -3077,6 +3203,26 @@ function analizarVideoCaida(landmarks) {
         ? "Hubo pérdida parcial de tracking durante el evento, algo frecuente en caídas reales con oclusión."
         : `La postura quedó comprometida con tronco a ${trunkAngle.toFixed(1)}° respecto del eje vertical.`
     ], 2.9 + (trunkAngleDelta / 24) + analisisVideoCaida.lowPostureFrames * 0.15);
+    return;
+  }
+
+  if (
+    hipDropSpeed > UMBRAL_CAIDA_VIDEO_VELOCIDAD &&
+    hipDropFromBaseline > UMBRAL_CAIDA_VIDEO_DESCENSO_MODERADO &&
+    trunkAngleDelta > UMBRAL_CAIDA_VIDEO_CAMBIO_ANGULO_SUAVE &&
+    (
+      moderateLowPosture ||
+      moderateHorizontal ||
+      analisisVideoCaida.lostTrackingFrames >= 1
+    )
+  ) {
+    registrarCaidaVideo(videoElement.currentTime || 0, hipDropFromBaseline, trunkAngle, [
+      `Descenso corporal relevante detectado aunque el tronco no haya llegado a una horizontalidad completa (${hipDropFromBaseline.toFixed(3)} de descenso, ${hipDropSpeed.toFixed(3)} de velocidad).`,
+      `Cambio postural brusco respecto de la base (${trunkAngleDelta.toFixed(1)}°).`,
+      moderateLowPosture
+        ? "La persona quedó en una postura más baja de la habitual tras el evento."
+        : "El seguimiento corporal mostró un compromiso transitorio compatible con pérdida de estabilidad."
+    ], 2.55 + (trunkAngleDelta / 30) + (moderateLowPosture ? 0.2 : 0));
     return;
   }
 
@@ -3298,7 +3444,7 @@ function procesarTrigger(results) {
 
 // ---------- Render ----------
 pose.onResults((results) => {
-  if (!cameraRunning || !results.image) return;
+  if ((!cameraRunning && sourceMode !== "file") || !results.image) return;
 
   canvasElement.width = results.image.width;
   canvasElement.height = results.image.height;
@@ -3400,6 +3546,7 @@ async function startCamera() {
     sourceMode = "camera";
     syncSourceModeUi();
     analisisVideoCaida = null;
+    updateReplayEventButton();
     updateVideoHelp();
     setStatus("Solicitando permiso de cámara...");
 
@@ -3490,6 +3637,9 @@ async function startVideoAnalysis(file) {
   setStatus("Analizando video local. Podés pausar o volver a reproducir para revisar el tramo detectado.");
   smoothScrollToElement(statusEl, "center");
   smoothScrollToElement(canvasElement, "center");
+  updateFallAlertChip();
+  updateReplayEventButton();
+  updateFrameStepButtons();
 }
 
 function stopCamera(options = {}) {
@@ -3526,6 +3676,9 @@ function stopCamera(options = {}) {
   sourceMode = "camera";
   syncSourceModeUi();
   analisisVideoCaida = null;
+  updateFallAlertChip();
+  updateReplayEventButton();
+  updateFrameStepButtons();
   updateVideoHelp();
   renderStandbyScreen(
     preserveSummary
@@ -3584,13 +3737,6 @@ pruebaEl?.addEventListener("change", () => {
   }
 });
 
-ladoApoyoEl?.addEventListener("change", () => {
-  if (getPruebaActual() === "monopedia" && !testRunning) {
-    renderPatientHelp();
-    setStatus(`Pierna de apoyo seleccionada: ${getEtiquetaLadoApoyo(getLadoApoyoMonopedia())}.`);
-  }
-});
-
 refreshCamerasButton?.addEventListener("click", async () => {
   await refreshCameraDevices();
   if (cameraRunning) {
@@ -3644,6 +3790,10 @@ savePatientButton?.addEventListener("click", () => {
   savePatientFromForm();
 });
 
+savePendingPatientButton?.addEventListener("click", () => {
+  savePendingPatientFromForm();
+});
+
 importCsvButton?.addEventListener("click", () => {
   csvFileInputEl?.click();
 });
@@ -3695,6 +3845,9 @@ videoElement?.addEventListener("play", () => {
   scheduleVideoFrameProcessing();
   updateControls();
   setStatus("Analizando video local en reproducción.");
+  updateFallAlertChip();
+  updateReplayEventButton();
+  updateFrameStepButtons();
 });
 
 videoElement?.addEventListener("pause", () => {
@@ -3710,6 +3863,15 @@ videoElement?.addEventListener("pause", () => {
   }
   updateControls();
   setStatus("Video en pausa. Lo mostrado es un resultado parcial; podés reanudar para completar el análisis.");
+  updateFallAlertChip();
+  updateReplayEventButton();
+  updateFrameStepButtons();
+});
+
+videoElement?.addEventListener("seeked", async () => {
+  if (sourceMode !== "file") return;
+  if (!videoElement.paused) return;
+  await renderCurrentVideoFrame();
 });
 
 videoElement?.addEventListener("ended", () => {
@@ -3723,21 +3885,59 @@ videoElement?.addEventListener("ended", () => {
     analisisVideoCaida.analysisCompleted = true;
     renderResultadoVideoCaida();
     if (analisisVideoCaida.fallDetectedAt !== null) {
-      videoElement.currentTime = Math.max(0, analisisVideoCaida.fallDetectedAt);
+      videoElement.currentTime = Math.max(0, analisisVideoCaida.fallDetectedAt - 0.9);
+      videoElement.pause();
     }
   }
   updateControls();
   setStatus(
     analisisVideoCaida?.fallDetectedAt !== null
-      ? "Análisis del video finalizado. Se marcó el mejor instante compatible con caída."
+      ? "Análisis del video finalizado. El video quedó pausado cerca del mejor instante compatible con caída."
       : "Análisis del video finalizado."
   );
+  updateFallAlertChip();
+  updateReplayEventButton();
+  updateFrameStepButtons();
 });
 
 saveCsvButton?.addEventListener("click", downloadCsv);
 
 reviewResultButton?.addEventListener("click", () => {
   smoothScrollToElement(resumenEl, "start");
+});
+
+fallAlertChip?.addEventListener("click", async () => {
+  if (sourceMode !== "file" || !analisisVideoCaida || analisisVideoCaida.fallDetectedAt === null) return;
+
+  videoElement.currentTime = Math.max(0, analisisVideoCaida.fallDetectedAt - 1.2);
+  smoothScrollToElement(canvasElement, "start");
+
+  try {
+    await videoElement.play();
+  } catch (error) {
+    console.error("No se pudo reproducir el video desde la alerta", error);
+  }
+});
+
+replayEventButton?.addEventListener("click", async () => {
+  if (sourceMode !== "file" || !analisisVideoCaida || analisisVideoCaida.fallDetectedAt === null) return;
+
+  videoElement.currentTime = Math.max(0, analisisVideoCaida.fallDetectedAt - 1.2);
+  smoothScrollToElement(canvasElement, "start");
+
+  try {
+    await videoElement.play();
+  } catch (error) {
+    console.error("No se pudo reproducir el video para revisar el evento", error);
+  }
+});
+
+prevFrameButton?.addEventListener("click", () => {
+  stepVideoFrame(-1);
+});
+
+nextFrameButton?.addEventListener("click", () => {
+  stepVideoFrame(1);
 });
 
 [nombrePacienteEl, patientIdentifierEl, sexoPacienteEl, centroEl, observacionesEl].forEach((field) => {

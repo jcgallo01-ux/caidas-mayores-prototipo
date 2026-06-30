@@ -499,6 +499,10 @@ table td {
   padding: 16px;
 }
 
+body.file-source .stage {
+  padding: 10px;
+}
+
 canvas {
   display: block;
   width: 100%;
@@ -508,6 +512,11 @@ canvas {
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: #000;
+}
+
+body.file-source canvas {
+  max-height: 53vh;
+  object-fit: contain;
 }
 
 video {
@@ -521,6 +530,46 @@ video {
 
 body.file-source video {
   display: block;
+  max-height: 28vh;
+  object-fit: contain;
+}
+
+body.file-source .media-panel {
+  padding-bottom: 10px;
+}
+
+.status-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 0 10px;
+}
+
+.review-button {
+  min-height: 40px;
+}
+
+.alert-chip {
+  min-height: 40px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(153, 27, 27, 0.28);
+  color: #fff7f7;
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  box-shadow: 0 12px 28px rgba(185, 28, 28, 0.22);
+}
+
+.alert-chip:hover {
+  background: linear-gradient(135deg, #b91c1c, #991b1b);
+}
+
+body.file-source .status-actions {
+  position: sticky;
+  top: 10px;
+  z-index: 4;
+  padding: 8px 0;
+  background: linear-gradient(180deg, rgba(238, 243, 246, 0.96), rgba(238, 243, 246, 0.78));
+  backdrop-filter: blur(10px);
 }
 
 #resumen {

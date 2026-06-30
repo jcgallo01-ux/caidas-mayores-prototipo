@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Caídas Mayores</title>
-  <link rel="icon" href="favicon.ico">
+  <link rel="icon" href="./favicon.ico" sizes="any">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
       <div>
         <p class="eyebrow">Evaluación funcional con cámara</p>
         <h1>Caídas Mayores</h1>
-        <p class="hero-copy">Interfaz pensada para trabajo de campo: menos pasos, foco en la imagen y una conclusion clara al final.</p>
+        <p class="hero-copy">Interfaz pensada para trabajo de campo: menos pasos, foco en la imagen y una conclusión clara al final.</p>
       </div>
       <div class="hero-actions">
         <div class="hero-chip">Prototipo clínico</div>
@@ -104,6 +104,7 @@
           </div>
           <div class="acciones patient-actions">
             <button id="savePatient" type="button">Guardar ficha</button>
+            <button id="savePendingPatient" type="button">Asignar ID pendiente</button>
           </div>
           <div id="patientHelp" class="patient-help"></div>
           <div id="historyPanel" class="history-panel"></div>
@@ -124,13 +125,6 @@
                 <option value="otros">Otros</option>
               </select>
             </div>
-            <div class="campo">
-              <label for="ladoApoyo">Pierna de apoyo</label>
-              <select id="ladoApoyo">
-                <option value="right">Derecha</option>
-                <option value="left">Izquierda</option>
-              </select>
-            </div>
             <div class="campo campo-amplio">
               <label for="observaciones">Observaciones</label>
               <input id="observaciones" type="text" placeholder="Notas breves">
@@ -148,7 +142,11 @@
             <div id="timer" class="timer-card">00:00</div>
           </div>
           <div class="status-actions">
+            <button id="fallAlertChip" class="alert-chip" type="button" hidden>ALERTA CAÍDA ↘</button>
             <button id="reviewResult" class="ghost-button review-button" type="button" hidden>Ver informe completo</button>
+            <button id="replayEvent" class="ghost-button review-button" type="button" hidden>Revisar evento</button>
+            <button id="prevFrame" class="ghost-button review-button" type="button" hidden>◀ 1 cuadro</button>
+            <button id="nextFrame" class="ghost-button review-button" type="button" hidden>1 cuadro ▶</button>
           </div>
 
           <div class="stage">
