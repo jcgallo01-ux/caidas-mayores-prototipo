@@ -43,9 +43,9 @@ let analisisVideoCaida = null;
 let analisisSitToStand = null;
 
 // Ajustes calibrables
-const UMBRAL_INICIO = 0.012;
+const UMBRAL_INICIO = 0.009;
 const UMBRAL_FIN = 0.028;
-const FRAMES_INICIO = 2;
+const FRAMES_INICIO = 1;
 const FRAMES_FIN = 2;
 const BASELINE_FRAMES_MIN = 12;
 const VISIBILIDAD_MINIMA = 0.6;
@@ -2035,8 +2035,8 @@ function syncSidebarButtonLabel() {
   if (!toggleSidebarButton) return;
 
   toggleSidebarButton.textContent = document.body.classList.contains("sidebar-collapsed")
-    ? "Mostrar panel lateral"
-    : "Ocultar panel lateral";
+    ? (isCompactViewport() ? "Mostrar ficha paciente" : "Mostrar panel lateral")
+    : (isCompactViewport() ? "Ocultar ficha paciente" : "Ocultar panel lateral");
 }
 
 function isCompactViewport() {
@@ -2053,7 +2053,7 @@ function setSidebarCollapsed(collapsed, persist = true) {
 
 function applySidebarPreference() {
   const stored = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
-  const collapsed = stored === null ? isCompactViewport() : stored === "true";
+  const collapsed = stored === null ? false : stored === "true";
   setSidebarCollapsed(collapsed, false);
 }
 
@@ -2588,42 +2588,46 @@ function renderTestPhaseHelp() {
 
   const patientReady = validatePatientData({ allowPending: true }).ok;
   const pruebaActual = getPruebaActual();
+  const hiddenPatientHint =
+    isCompactViewport() && document.body.classList.contains("sidebar-collapsed")
+      ? " Use 'Mostrar ficha paciente' arriba para cargar o editar datos personales."
+      : "";
 
   if (!cameraRunning || sourceMode !== "camera") {
-    testPhaseHelpEl.textContent = "Encienda la camara para preparar la prueba.";
+    testPhaseHelpEl.textContent = `Encienda la camara para preparar la prueba.${hiddenPatientHint}`;
     return;
   }
 
   if (!patientReady) {
-    testPhaseHelpEl.textContent = "Complete paciente y fecha de nacimiento, o asigne un ID pendiente para trabajo de campo.";
+    testPhaseHelpEl.textContent = `Complete paciente y fecha de nacimiento, o asigne un ID pendiente para trabajo de campo.${hiddenPatientHint}`;
     return;
   }
 
   if (testRunning) {
     testPhaseHelpEl.textContent =
       pruebaActual === "sit_to_stand"
-        ? "Test en curso. Mantenga al paciente centrado."
-        : "Test en curso. Sostenga la posicion hasta el cierre.";
+        ? `Test en curso. Mantenga al paciente centrado.${hiddenPatientHint}`
+        : `Test en curso. Sostenga la posicion hasta el cierre.${hiddenPatientHint}`;
     return;
   }
 
   if (esperandoInicio && startReady) {
     testPhaseHelpEl.textContent =
       pruebaActual === "sit_to_stand"
-        ? "Listo. Inicie el movimiento."
-        : "Listo. Levante un pie.";
+        ? `Listo. Inicie el movimiento.${hiddenPatientHint}`
+        : `Listo. Levante un pie.${hiddenPatientHint}`;
     return;
   }
 
   if (esperandoInicio) {
     testPhaseHelpEl.textContent =
       pruebaActual === "sit_to_stand"
-        ? "Preparando. Ubique al paciente sentado y quieto."
-        : "Preparando. Mire la camara y quedese quieto.";
+        ? `Preparando. Ubique al paciente sentado y quieto.${hiddenPatientHint}`
+        : `Preparando. Mire la camara y quedese quieto.${hiddenPatientHint}`;
     return;
   }
 
-  testPhaseHelpEl.textContent = "Presione Preparar test para comenzar.";
+  testPhaseHelpEl.textContent = `Presione Preparar test para comenzar.${hiddenPatientHint}`;
 }
 
 // ---------- Timer ----------
