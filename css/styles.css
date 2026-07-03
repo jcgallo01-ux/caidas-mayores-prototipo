@@ -137,6 +137,54 @@ body.sidebar-collapsed .sidebar {
   padding: 22px;
 }
 
+.compact-section {
+  padding: 0;
+  overflow: hidden;
+}
+
+.compact-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.compact-summary::-webkit-details-marker {
+  display: none;
+}
+
+.compact-summary .section-kicker {
+  margin-bottom: 6px;
+}
+
+.compact-summary h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.compact-chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+  margin-right: 4px;
+}
+
+.compact-section[open] .compact-chevron {
+  transform: rotate(225deg);
+  margin-top: 6px;
+}
+
+.compact-body {
+  padding: 0 22px 22px;
+}
+
 .section-head {
   margin-bottom: 18px;
 }
@@ -433,7 +481,7 @@ table td {
 }
 
 .controls-panel {
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 .camera-settings {
@@ -446,20 +494,23 @@ table td {
 
 .patient-actions {
   margin-top: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .status-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 140px;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 12px;
   align-items: stretch;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .status-actions {
   display: flex;
   justify-content: flex-end;
-  margin: -6px 0 14px 0;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 10px 0;
 }
 
 .review-button[hidden] {
@@ -477,7 +528,7 @@ table td {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 68px;
+  min-height: 60px;
   padding: 14px 16px;
   border-radius: 20px;
   font-weight: 700;
@@ -491,7 +542,7 @@ table td {
 }
 
 .timer-card {
-  font-size: 28px;
+  font-size: 26px;
   color: #7c4a11;
   background: rgba(251, 191, 36, 0.14);
   border: 1px solid rgba(217, 119, 6, 0.18);
@@ -694,14 +745,19 @@ table {
   }
 
   .hero {
-    padding: 22px 18px;
+    padding: 18px 16px;
     border-radius: 22px;
     flex-direction: column;
+    margin-bottom: 14px;
   }
 
   .hero-actions {
     width: 100%;
     align-items: stretch;
+  }
+
+  .hero-copy {
+    display: none;
   }
 
   .section-panel,
@@ -713,14 +769,65 @@ table {
   .fila,
   .fila-busqueda,
   .camera-settings,
-  .camera-actions,
-  .acciones,
-  .status-row {
+  .acciones {
     grid-template-columns: 1fr;
   }
 
   .campo-amplio {
     grid-column: auto;
+  }
+
+  .compact-summary {
+    padding: 16px;
+  }
+
+  .compact-summary h2 {
+    font-size: 20px;
+  }
+
+  .compact-body {
+    padding: 0 16px 16px;
+  }
+
+  .status-row {
+    grid-template-columns: minmax(0, 1fr) 92px;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .status-card,
+  .timer-card {
+    min-height: 56px;
+    padding: 12px;
+  }
+
+  .status-card {
+    font-size: 14px;
+  }
+
+  .timer-card {
+    font-size: 22px;
+  }
+
+  .camera-actions,
+  .patient-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .camera-actions button,
+  .patient-actions button,
+  .status-actions button {
+    min-height: 44px;
+    padding-inline: 12px;
+    font-size: 14px;
+  }
+
+  .stage {
+    padding: 10px;
+  }
+
+  .status-actions {
+    margin: 8px 0;
   }
 
   .video-upload-header {

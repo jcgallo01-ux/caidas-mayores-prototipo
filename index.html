@@ -24,114 +24,129 @@
 
     <div class="layout">
       <section class="sidebar">
-        <div class="panel section-panel">
-          <div class="section-head">
-            <p class="section-kicker">Búsqueda</p>
-            <h2>Paciente guardado</h2>
+        <details class="panel section-panel compact-section" open>
+          <summary class="compact-summary">
+            <div>
+              <p class="section-kicker">Búsqueda</p>
+              <h2>Paciente guardado</h2>
+            </div>
+            <span class="compact-chevron" aria-hidden="true"></span>
+          </summary>
+          <div class="compact-body">
+            <div class="fila fila-busqueda">
+              <div class="campo">
+                <label for="patientSearchName">Buscar por nombre</label>
+                <input id="patientSearchName" type="text" placeholder="Nombre y apellido">
+              </div>
+              <div class="campo">
+                <label for="patientSearchId">Buscar por ID / DNI / HC</label>
+                <input id="patientSearchId" type="text" placeholder="P-0001, DNI o HC">
+              </div>
+              <div class="campo">
+                <label for="patientSearchCenter">Centro</label>
+                <input id="patientSearchCenter" type="text" placeholder="Ej. Patricios">
+              </div>
+            </div>
+            <div class="fila">
+              <div class="campo campo-amplio">
+                <label for="patientSelect">Resultados filtrados</label>
+                <select id="patientSelect">
+                  <option value="">Nuevo paciente</option>
+                </select>
+              </div>
+              <div class="campo campo-boton">
+                <label>&nbsp;</label>
+                <button id="newPatient" type="button">Nuevo paciente</button>
+              </div>
+              <div class="campo campo-boton">
+                <label>&nbsp;</label>
+                <button id="importCsv" type="button">Importar CSV</button>
+                <input id="csvFileInput" type="file" accept=".csv,text/csv" hidden>
+              </div>
+            </div>
           </div>
-          <div class="fila fila-busqueda">
-            <div class="campo">
-              <label for="patientSearchName">Buscar por nombre</label>
-              <input id="patientSearchName" type="text" placeholder="Nombre y apellido">
-            </div>
-            <div class="campo">
-              <label for="patientSearchId">Buscar por ID / DNI / HC</label>
-              <input id="patientSearchId" type="text" placeholder="P-0001, DNI o HC">
-            </div>
-            <div class="campo">
-              <label for="patientSearchCenter">Centro</label>
-              <input id="patientSearchCenter" type="text" placeholder="Ej. Patricios">
-            </div>
-          </div>
-          <div class="fila">
-            <div class="campo campo-amplio">
-              <label for="patientSelect">Resultados filtrados</label>
-              <select id="patientSelect">
-                <option value="">Nuevo paciente</option>
-              </select>
-            </div>
-            <div class="campo campo-boton">
-              <label>&nbsp;</label>
-              <button id="newPatient" type="button">Nuevo paciente</button>
-            </div>
-            <div class="campo campo-boton">
-              <label>&nbsp;</label>
-              <button id="importCsv" type="button">Importar CSV</button>
-              <input id="csvFileInput" type="file" accept=".csv,text/csv" hidden>
-            </div>
-          </div>
-        </div>
+        </details>
 
-        <div class="panel section-panel">
-          <div class="section-head">
-            <p class="section-kicker">Datos</p>
-            <h2>Ficha del paciente</h2>
+        <details class="panel section-panel compact-section" open>
+          <summary class="compact-summary">
+            <div>
+              <p class="section-kicker">Datos</p>
+              <h2>Ficha del paciente</h2>
+            </div>
+            <span class="compact-chevron" aria-hidden="true"></span>
+          </summary>
+          <div class="compact-body">
+            <div class="fila">
+              <div class="campo">
+                <label for="patientCode">ID paciente</label>
+                <input id="patientCode" type="text" placeholder="Se asigna al guardar" readonly>
+              </div>
+              <div class="campo campo-amplio">
+                <label for="nombrePaciente">Nombre completo</label>
+                <input id="nombrePaciente" type="text" placeholder="Nombre y apellido">
+              </div>
+              <div class="campo">
+                <label for="fechaNacimientoDesktop">Fecha de nacimiento</label>
+                <input id="fechaNacimientoDesktop" type="text" inputmode="numeric" placeholder="dd/mm/aaaa" autocomplete="bday" maxlength="10">
+                <input id="fechaNacimientoMobile" type="date" autocomplete="bday" hidden>
+              </div>
+              <div class="campo">
+                <label for="patientIdentifier">DNI / HC</label>
+                <input id="patientIdentifier" type="text" placeholder="Opcional">
+              </div>
+              <div class="campo">
+                <label for="edadCalculada">Edad</label>
+                <input id="edadCalculada" type="text" placeholder="Automática" readonly>
+              </div>
+              <div class="campo">
+                <label for="sexoPaciente">Sexo</label>
+                <select id="sexoPaciente">
+                  <option value="">Seleccionar</option>
+                  <option value="F">F</option>
+                  <option value="M">M</option>
+                </select>
+              </div>
+              <div class="campo">
+                <label for="centro">Centro</label>
+                <input id="centro" type="text" value="Patricios">
+              </div>
+            </div>
+            <div class="acciones patient-actions">
+              <button id="savePatient" type="button">Guardar ficha</button>
+              <button id="savePendingPatient" type="button">Asignar ID pendiente</button>
+            </div>
+            <div id="patientHelp" class="patient-help"></div>
+            <div id="historyPanel" class="history-panel"></div>
           </div>
-          <div class="fila">
-            <div class="campo">
-              <label for="patientCode">ID paciente</label>
-              <input id="patientCode" type="text" placeholder="Se asigna al guardar" readonly>
-            </div>
-            <div class="campo campo-amplio">
-              <label for="nombrePaciente">Nombre completo</label>
-              <input id="nombrePaciente" type="text" placeholder="Nombre y apellido">
-            </div>
-            <div class="campo">
-              <label for="fechaNacimientoDesktop">Fecha de nacimiento</label>
-              <input id="fechaNacimientoDesktop" type="text" inputmode="numeric" placeholder="dd/mm/aaaa" autocomplete="bday" maxlength="10">
-              <input id="fechaNacimientoMobile" type="date" autocomplete="bday" hidden>
-            </div>
-            <div class="campo">
-              <label for="patientIdentifier">DNI / HC</label>
-              <input id="patientIdentifier" type="text" placeholder="Opcional">
-            </div>
-            <div class="campo">
-              <label for="edadCalculada">Edad</label>
-              <input id="edadCalculada" type="text" placeholder="Automática" readonly>
-            </div>
-            <div class="campo">
-              <label for="sexoPaciente">Sexo</label>
-              <select id="sexoPaciente">
-                <option value="">Seleccionar</option>
-                <option value="F">F</option>
-                <option value="M">M</option>
-              </select>
-            </div>
-            <div class="campo">
-              <label for="centro">Centro</label>
-              <input id="centro" type="text" value="Patricios">
-            </div>
-          </div>
-          <div class="acciones patient-actions">
-            <button id="savePatient" type="button">Guardar ficha</button>
-            <button id="savePendingPatient" type="button">Asignar ID pendiente</button>
-          </div>
-          <div id="patientHelp" class="patient-help"></div>
-          <div id="historyPanel" class="history-panel"></div>
-        </div>
+        </details>
 
-        <div class="panel section-panel">
-          <div class="section-head">
-            <p class="section-kicker">Prueba</p>
-            <h2>Configuración</h2>
-          </div>
-          <div class="fila">
-            <div class="campo">
-              <label for="prueba">Prueba</label>
-              <select id="prueba">
-                <option value="monopedia">Monopedia</option>
-                <option value="tug">TUG</option>
-                <option value="sit_to_stand">Sit to Stand</option>
-                <option value="otros">Otros</option>
-              </select>
+        <details class="panel section-panel compact-section" open>
+          <summary class="compact-summary">
+            <div>
+              <p class="section-kicker">Prueba</p>
+              <h2>Configuración</h2>
             </div>
-            <div class="campo campo-amplio">
-              <label for="observaciones">Observaciones</label>
-              <input id="observaciones" type="text" placeholder="Notas breves">
+            <span class="compact-chevron" aria-hidden="true"></span>
+          </summary>
+          <div class="compact-body">
+            <div class="fila">
+              <div class="campo">
+                <label for="prueba">Prueba</label>
+                <select id="prueba">
+                  <option value="monopedia">Monopedia</option>
+                  <option value="tug">TUG</option>
+                  <option value="sit_to_stand">Sit to Stand</option>
+                  <option value="otros">Otros</option>
+                </select>
+              </div>
+              <div class="campo campo-amplio">
+                <label for="observaciones">Observaciones</label>
+                <input id="observaciones" type="text" placeholder="Notas breves">
+              </div>
             </div>
+            <div id="testPhaseHelp" class="test-phase-help"></div>
           </div>
-          <div id="testPhaseHelp" class="test-phase-help"></div>
-        </div>
+        </details>
 
       </section>
 
@@ -154,94 +169,99 @@
             <video id="video" autoplay playsinline muted></video>
           </div>
 
-          <div class="panel section-panel controls-panel">
-            <div class="section-head">
-              <p class="section-kicker">Cámara</p>
-              <h2>Captura y análisis</h2>
-            </div>
-            <div class="fila camera-settings">
-              <div class="campo">
-                <label for="cameraMode">Cámara</label>
-                <select id="cameraMode">
-                  <option value="auto">Automática</option>
-                  <option value="environment">Trasera</option>
-                  <option value="user">Frontal</option>
-                </select>
+          <details class="panel section-panel controls-panel compact-section" open>
+            <summary class="compact-summary">
+              <div>
+                <p class="section-kicker">Cámara</p>
+                <h2>Captura y análisis</h2>
               </div>
-              <div class="campo">
-                <label for="cameraDevice">Dispositivo</label>
-                <select id="cameraDevice">
-                  <option value="">Predeterminado</option>
-                </select>
-              </div>
-              <div class="campo">
-                <label for="framingMode">Encuadre</label>
-                <select id="framingMode">
-                  <option value="standard">Estándar</option>
-                  <option value="close_room">Consultorio (hasta 2 m)</option>
-                </select>
-              </div>
-              <div class="campo">
-                <label for="renderMode">Visualización</label>
-                <select id="renderMode">
-                  <option value="privacy">Privada</option>
-                  <option value="camera">Cámara + vectores</option>
-                </select>
-              </div>
-              <div class="campo campo-boton">
-                <label>&nbsp;</label>
-                <button id="refreshCameras" type="button">Actualizar cámaras</button>
-              </div>
-            </div>
-
-            <div class="acciones camera-actions">
-              <button id="toggleCam">Encender cámara</button>
-              <button id="startTest">Preparar test</button>
-              <button id="stopTest">Detener test</button>
-              <button id="nuevoTest">Nuevo test</button>
-              <button id="saveCsv">Guardar CSV</button>
-            </div>
-
-            <div id="cameraHelp" class="camera-help"></div>
-
-            <div class="video-upload-block">
-              <div class="video-upload-header">
-                <div>
-                  <p class="section-kicker">Video</p>
-                  <h3>Cargar archivo</h3>
-                </div>
-                <button id="loadVideo" type="button">Cargar video</button>
-                <input id="videoFileInput" type="file" accept="video/*" hidden>
-              </div>
-              <div id="videoHelp" class="video-help"></div>
-              <div class="fila video-analysis-settings">
+              <span class="compact-chevron" aria-hidden="true"></span>
+            </summary>
+            <div class="compact-body">
+              <div class="fila camera-settings">
                 <div class="campo">
-                  <label for="videoAnalysisMode">Modo de video</label>
-                  <select id="videoAnalysisMode">
-                    <option value="fall">Detección de caída</option>
-                    <option value="analysis">Análisis técnico</option>
+                  <label for="cameraMode">Cámara</label>
+                  <select id="cameraMode">
+                    <option value="auto">Automática</option>
+                    <option value="environment">Trasera</option>
+                    <option value="user">Frontal</option>
                   </select>
                 </div>
                 <div class="campo">
-                  <label for="videoExpectedDirection">Tipo / dirección esperada</label>
-                  <select id="videoExpectedDirection">
-                    <option value="">Sin especificar</option>
-                    <option value="forward">Hacia adelante</option>
-                    <option value="backward">Hacia atrás</option>
-                    <option value="lateral">Hacia un costado</option>
-                    <option value="rotation">Con rotación</option>
+                  <label for="cameraDevice">Dispositivo</label>
+                  <select id="cameraDevice">
+                    <option value="">Predeterminado</option>
                   </select>
                 </div>
-                <div class="campo campo-amplio">
-                  <label for="videoHeadFocus">Cabeza / foco de observación</label>
-                  <input id="videoHeadFocus" type="text" placeholder="Ej. observar protección de cabeza o alineación cervical">
+                <div class="campo">
+                  <label for="framingMode">Encuadre</label>
+                  <select id="framingMode">
+                    <option value="standard">Estándar</option>
+                    <option value="close_room">Consultorio (hasta 2 m)</option>
+                  </select>
+                </div>
+                <div class="campo">
+                  <label for="renderMode">Visualización</label>
+                  <select id="renderMode">
+                    <option value="privacy">Privada</option>
+                    <option value="camera">Cámara + vectores</option>
+                  </select>
+                </div>
+                <div class="campo campo-boton">
+                  <label>&nbsp;</label>
+                  <button id="refreshCameras" type="button">Actualizar cámaras</button>
                 </div>
               </div>
-              <div class="acciones video-analysis-actions">
-                <button id="applyVideoMode" type="button">Aplicar análisis</button>
+
+              <div class="acciones camera-actions">
+                <button id="toggleCam">Encender cámara</button>
+                <button id="startTest">Preparar test</button>
+                <button id="stopTest">Detener test</button>
+                <button id="nuevoTest">Nuevo test</button>
+                <button id="saveCsv">Guardar CSV</button>
+              </div>
+
+              <div id="cameraHelp" class="camera-help"></div>
+
+              <div class="video-upload-block">
+                <div class="video-upload-header">
+                  <div>
+                    <p class="section-kicker">Video</p>
+                    <h3>Cargar archivo</h3>
+                  </div>
+                  <button id="loadVideo" type="button">Cargar video</button>
+                  <input id="videoFileInput" type="file" accept="video/*" hidden>
+                </div>
+                <div id="videoHelp" class="video-help"></div>
+                <div class="fila video-analysis-settings">
+                  <div class="campo">
+                    <label for="videoAnalysisMode">Modo de video</label>
+                    <select id="videoAnalysisMode">
+                      <option value="fall">Detección de caída</option>
+                      <option value="analysis">Análisis técnico</option>
+                    </select>
+                  </div>
+                  <div class="campo">
+                    <label for="videoExpectedDirection">Tipo / dirección esperada</label>
+                    <select id="videoExpectedDirection">
+                      <option value="">Sin especificar</option>
+                      <option value="forward">Hacia adelante</option>
+                      <option value="backward">Hacia atrás</option>
+                      <option value="lateral">Hacia un costado</option>
+                      <option value="rotation">Con rotación</option>
+                    </select>
+                  </div>
+                  <div class="campo campo-amplio">
+                    <label for="videoHeadFocus">Cabeza / foco de observación</label>
+                    <input id="videoHeadFocus" type="text" placeholder="Ej. observar protección de cabeza o alineación cervical">
+                  </div>
+                </div>
+                <div class="acciones video-analysis-actions">
+                  <button id="applyVideoMode" type="button">Aplicar análisis</button>
+                </div>
               </div>
             </div>
-          </div>
+          </details>
 
           <div id="resumen" class="summary-panel">Sin datos todavía.</div>
         </div>
