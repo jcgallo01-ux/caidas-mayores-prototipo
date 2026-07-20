@@ -126,6 +126,7 @@ function crearAnalisisVideoCaida() {
   return {
     baselineHipY: null,
     baselineHipX: null,
+    baselineHeadOffsetX: null,
     baselineTrunkAngle: null,
     baselineFrames: 0,
     previousHipY: null,
@@ -133,7 +134,17 @@ function crearAnalisisVideoCaida() {
     maxHipDropFromBaseline: 0,
     maxHipLateralShift: 0,
     maxTrunkAngleDelta: 0,
+    maxHeadOffsetFromAxis: 0,
     lastTrunkAngle: 0,
+    lastHeadOffsetX: 0,
+    lastCenterX: null,
+    lastCenterY: null,
+    lastHeadX: null,
+    lastHeadY: null,
+    lastHipX: null,
+    lastHipY: null,
+    lastShoulderX: null,
+    lastShoulderY: null,
     lowPostureFrames: 0,
     horizontalFrames: 0,
     fallDetectedAt: null,
@@ -141,6 +152,7 @@ function crearAnalisisVideoCaida() {
     detectionHipDrop: null,
     detectionTrunkAngle: null,
     detectionLateralShift: 0,
+    detectionHeadOffset: 0,
     detectionLowPostureFrames: 0,
     detectionHorizontalFrames: 0,
     lostTrackingFrames: 0,
@@ -190,6 +202,7 @@ const loadVideoButton = document.getElementById("loadVideo");
 const cameraHelpEl = document.getElementById("cameraHelp");
 const videoHelpEl = document.getElementById("videoHelp");
 const videoAnalysisModeEl = document.getElementById("videoAnalysisMode");
+const videoSubjectRoleEl = document.getElementById("videoSubjectRole");
 const videoExpectedDirectionEl = document.getElementById("videoExpectedDirection");
 const videoHeadFocusEl = document.getElementById("videoHeadFocus");
 const applyVideoModeButton = document.getElementById("applyVideoMode");
@@ -243,11 +256,35 @@ function normalizeText(texto) {
 }
 
 function getVideoAnalysisMode() {
-  return videoAnalysisModeEl?.value === "analysis" ? "analysis" : "fall";
+  const mode = videoAnalysisModeEl?.value || "fall";
+  return ["fall", "analysis", "ukemi"].includes(mode) ? mode : "fall";
 }
 
 function isTechnicalVideoAnalysisMode() {
   return getVideoAnalysisMode() === "analysis";
+}
+
+function isUkemiVideoMode() {
+  return getVideoAnalysisMode() === "ukemi";
+}
+
+function usesDescriptiveVideoMode() {
+  return isTechnicalVideoAnalysisMode() || isUkemiVideoMode();
+}
+
+function getVideoSubjectRole() {
+  return videoSubjectRoleEl?.value || "visible";
+}
+
+function getVideoSubjectRoleLabel() {
+  switch (getVideoSubjectRole()) {
+    case "student":
+      return "alumno";
+    case "teacher":
+      return "profesor";
+    default:
+      return "protagonista visible";
+  }
 }
 
 function getVideoExpectedDirection() {
@@ -1705,7 +1742,7 @@ function updateFallAlertChip() {
 
   fallAlertChip.hidden = !(
     sourceMode === "file" &&
-    !isTechnicalVideoAnalysisMode() &&
+    getVideoAnalysisMode() === "fall" &&
     analisisVideoCaida &&
     analisisVideoCaida.fallDetectedAt !== null
   );
@@ -1755,10 +1792,23 @@ function getVideoLateralShiftLabel(shift) {
   return "no evidente";
 }
 
+function getHeadAlignmentLabel(offset) {
+  const absOffset = Math.abs(offset);
+  if (absOffset < 0.025) return "centrada";
+  if (offset > 0) return "desplazada hacia la derecha";
+  return "desplazada hacia la izquierda";
+}
+
 function getVideoContextNotes() {
   const notes = [];
+  const subjectRole = getVideoSubjectRoleLabel();
   const expectedDirection = getVideoExpectedDirectionLabel();
   const headFocus = getVideoHeadFocus();
+
+  if (isUkemiVideoMode()) {
+    notes.push(`Protagonista seleccionado para seguimiento: ${subjectRole}.`);
+    notes.push("En esta versión se sigue el protagonista más visible en cuadro; el seguimiento simultáneo de ambos queda como siguiente etapa.");
+  }
 
   if (getVideoExpectedDirection()) {
     notes.push(`Dirección o tipo esperado informado por el usuario: ${expectedDirection}.`);
@@ -1769,6 +1819,56 @@ function getVideoContextNotes() {
   }
 
   return notes;
+}
+
+function renderUkemiOverlay(landmarks) {
+  if (sourceMode !== "file" || !isUkemiVideoMode() || !canvasCtx) return;
+
+  const nose = landmarks?.[0];
+  const leftShoulder = landmarks?.[11];
+  const rightShoulder = landmarks?.[12];
+  const leftHip = landmarks?.[23];
+  const rightHip = landmarks?.[24];
+  if (!nose || !leftShoulder || !rightShoulder || !leftHip || !rightHip) return;
+
+  const shoulderX = ((leftShoulder.x + rightShoulder.x) / 2) * canvasElement.width;
+  const shoulderY = ((leftShoulder.y + rightShoulder.y) / 2) * canvasElement.height;
+  const hipX = ((leftHip.x + rightHip.x) / 2) * canvasElement.width;
+  const hipY = ((leftHip.y + rightHip.y) / 2) * canvasElement.height;
+  const centerX = (shoulderX + hipX) / 2;
+  const centerY = (shoulderY + hipY) / 2;
+  const headX = nose.x * canvasElement.width;
+  const headY = nose.y * canvasElement.height;
+
+  canvasCtx.save();
+  canvasCtx.strokeStyle = "#fbbf24";
+  canvasCtx.lineWidth = 3;
+  canvasCtx.setLineDash([8, 6]);
+  canvasCtx.beginPath();
+  canvasCtx.moveTo(shoulderX, shoulderY);
+  canvasCtx.lineTo(hipX, hipY);
+  canvasCtx.stroke();
+  canvasCtx.setLineDash([]);
+
+  canvasCtx.fillStyle = "#fbbf24";
+  canvasCtx.beginPath();
+  canvasCtx.arc(centerX, centerY, 7, 0, Math.PI * 2);
+  canvasCtx.fill();
+
+  canvasCtx.strokeStyle = "#60a5fa";
+  canvasCtx.lineWidth = 3;
+  canvasCtx.beginPath();
+  canvasCtx.arc(headX, headY, 11, 0, Math.PI * 2);
+  canvasCtx.stroke();
+
+  canvasCtx.fillStyle = "rgba(10, 15, 20, 0.72)";
+  canvasCtx.fillRect(18, canvasElement.height - 92, 250, 72);
+  canvasCtx.fillStyle = "#f8fafc";
+  canvasCtx.font = "bold 16px Arial";
+  canvasCtx.fillText(`Ukemi: ${getVideoSubjectRoleLabel()}`, 30, canvasElement.height - 62);
+  canvasCtx.font = "14px Arial";
+  canvasCtx.fillText("CG aprox. y eje resaltados", 30, canvasElement.height - 38);
+  canvasCtx.restore();
 }
 
 function rerenderVideoSummaryIfVisible() {
@@ -1800,7 +1900,9 @@ async function applyVideoAnalysis(options = {}) {
       cancelAnimationFrame(animationId);
       scheduleVideoFrameProcessing();
       setStatus(
-        isTechnicalVideoAnalysisMode()
+        isUkemiVideoMode()
+          ? "Analizando video en modo ukemi. Podés pausar o revisar cuadro a cuadro."
+          : isTechnicalVideoAnalysisMode()
           ? "Analizando video en modo técnico. Podés pausar o revisar cuadro a cuadro."
           : "Analizando video local. Podés pausar o volver a reproducir para revisar el tramo detectado."
       );
@@ -1990,10 +2092,21 @@ function renderResultadoVideoCaida() {
   if (!resumenEl || !analisisVideoCaida) return;
 
   const technicalMode = isTechnicalVideoAnalysisMode();
+  const ukemiMode = isUkemiVideoMode();
   const detected = analisisVideoCaida.fallDetectedAt !== null;
   const completed = analisisVideoCaida.analysisCompleted;
-  const color = technicalMode ? (detected ? "amarillo" : "verde") : (detected ? "rojo" : "verde");
-  const titulo = technicalMode
+  const color = ukemiMode
+    ? "amarillo"
+    : technicalMode ? (detected ? "amarillo" : "verde") : (detected ? "rojo" : "verde");
+  const titulo = ukemiMode
+    ? detected
+      ? completed
+        ? "Análisis básico de ukemi con momento destacado"
+        : "Análisis básico de ukemi en revisión"
+      : completed
+        ? "Análisis básico de ukemi completado"
+        : "Analizando ukemi"
+    : technicalMode
     ? detected
       ? completed
         ? "Análisis técnico con momento destacado"
@@ -2024,13 +2137,33 @@ function renderResultadoVideoCaida() {
     ? analisisVideoCaida.detectionHipDrop.toFixed(3)
     : null;
   const lateralDeteccion = analisisVideoCaida.detectionLateralShift.toFixed(3);
+  const headOffset = analisisVideoCaida.lastHeadOffsetX.toFixed(3);
+  const headAlignmentLabel = getHeadAlignmentLabel(analisisVideoCaida.lastHeadOffsetX);
   const inicioRevision = detected
     ? Math.max(0, analisisVideoCaida.fallDetectedAt - 0.8)
     : null;
   const finRevision = detected ? analisisVideoCaida.fallDetectedAt + 0.4 : null;
   const rotacionLabel = getVideoRotationLabel(analisisVideoCaida.maxTrunkAngleDelta);
   const lateralLabel = getVideoLateralShiftLabel(analisisVideoCaida.maxHipLateralShift);
-  const detailsHtml = technicalMode
+  const detailsHtml = ukemiMode
+    ? `
+        <p><strong>Modo:</strong> análisis básico de ukemi sobre el protagonista visible.</p>
+        <p><strong>Rol elegido:</strong> ${getVideoSubjectRoleLabel()}.</p>
+        <p><strong>Dirección esperada:</strong> ${getVideoExpectedDirectionLabel()}.</p>
+        <p><strong>Descenso máximo respecto de la base:</strong> ${descensoMaximo}</p>
+        <p><strong>Desvío lateral máximo:</strong> ${lateralMaximo} (${lateralLabel})</p>
+        <p><strong>Cambio máximo del eje corporal:</strong> ${rotacionMaxima}° (${rotacionLabel})</p>
+        <p><strong>Posición relativa de la cabeza:</strong> ${headAlignmentLabel} (${headOffset})</p>
+        ${detected
+          ? `
+            <p><strong>Momento destacado para revisión:</strong> ${formatSeconds(analisisVideoCaida.fallDetectedAt)}</p>
+            <p><strong>Ventana sugerida:</strong> ${formatSeconds(inicioRevision)} a ${formatSeconds(finRevision)}</p>
+          `
+          : completed
+            ? `<p><strong>Resultado:</strong> no apareció un único pico dominante; conviene usar el cuadro a cuadro y las guías de vector para revisar la técnica.</p>`
+            : `<p><strong>Estado:</strong> el video sigue en análisis.</p>`}
+      `
+    : technicalMode
     ? `
         <p><strong>Modo:</strong> análisis técnico de movimiento.</p>
         <p><strong>Contexto cargado:</strong> ${getVideoExpectedDirectionLabel()}.</p>
@@ -2071,7 +2204,7 @@ function renderResultadoVideoCaida() {
 
   resumenEl.innerHTML = `
     <div class="resultado resultado-${color}">
-      <div class="resultado-badge">${technicalMode ? "ANÁLISIS" : detected ? "ALERTA" : "OK"}</div>
+      <div class="resultado-badge">${ukemiMode ? "UKEMI" : technicalMode ? "ANÁLISIS" : detected ? "ALERTA" : "OK"}</div>
       <div class="resultado-contenido">
         <h2>${titulo}</h2>
         ${detailsHtml}
@@ -2086,12 +2219,14 @@ function renderResultadoVideoCaida() {
           `
           : ""}
         <div class="resultado-detalle">
-          <p><strong>${technicalMode ? "Señales útiles para revisión:" : "Señales observadas:"}</strong></p>
+          <p><strong>${usesDescriptiveVideoMode() ? "Señales útiles para revisión:" : "Señales observadas:"}</strong></p>
           <ul>
             ${reasons.map((item) => `<li>${item}</li>`).join("")}
           </ul>
         </div>
-        <p class="resultado-nota">${technicalMode
+        <p class="resultado-nota">${ukemiMode
+          ? "Nota: este modo de ukemi todavía sigue un solo protagonista visible. La comparación simultánea de ambos practicantes será el siguiente paso."
+          : technicalMode
           ? "Nota: este modo usa el mismo pose tracking para resumir el movimiento, pero no clasifica aprobación técnica ni interpreta el evento como caída clínica."
           : "Nota: este módulo es exploratorio. Sirve para revisar un video con pose tracking y una heurística inicial, pero no valida por sí solo una caída real ni reemplaza evaluación profesional."}</p>
       </div>
@@ -2194,14 +2329,16 @@ function updateVideoHelp(message = null) {
   }
 
   if (sourceMode === "file") {
-    videoHelpEl.textContent = isTechnicalVideoAnalysisMode()
+    videoHelpEl.textContent = isUkemiVideoMode()
+      ? `Video cargado${uploadedVideoName ? `: ${uploadedVideoName}` : ""}. Modo Ukemi: seguí al protagonista visible, revisá cuadro a cuadro y usá los vectores, eje, CG aproximado y cabeza como guía básica.`
+      : isTechnicalVideoAnalysisMode()
       ? `Video cargado${uploadedVideoName ? `: ${uploadedVideoName}` : ""}. Elegí el contexto y usá 'Aplicar análisis' para revisar el movimiento sin clasificarlo como caída.`
       : `Video cargado${uploadedVideoName ? `: ${uploadedVideoName}` : ""}. Usá 'Aplicar análisis' para correr la detección de caída con el modo seleccionado.`;
     return;
   }
 
   videoHelpEl.textContent =
-    "Beta: cargá un video local para revisar una posible caída o usar el modo análisis técnico.";
+    "Beta: cargá un video local para revisar una posible caída, hacer análisis técnico o una lectura básica de ukemi.";
 }
 
 function syncSourceModeUi() {
@@ -2718,6 +2855,9 @@ function renderPoseFrame(results) {
 
   if (results.poseLandmarks) {
     drawPoseOverlay(results.poseLandmarks);
+    if (sourceMode === "file" && isUkemiVideoMode()) {
+      renderUkemiOverlay(results.poseLandmarks);
+    }
     if (sourceMode === "camera") {
       drawFramingGuidance(results.poseLandmarks);
     }
@@ -3237,12 +3377,13 @@ function analizarVideoCaida(landmarks) {
     analisisVideoCaida = crearAnalisisVideoCaida();
   }
 
+  const nose = landmarks[0];
   const leftShoulder = landmarks[11];
   const rightShoulder = landmarks[12];
   const leftHip = landmarks[23];
   const rightHip = landmarks[24];
 
-  if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) {
+  if (!nose || !leftShoulder || !rightShoulder || !leftHip || !rightHip) {
     analisisVideoCaida.lostTrackingFrames += 1;
     if (
       analisisVideoCaida.strongMotionCandidateAt !== null &&
@@ -3263,7 +3404,7 @@ function analizarVideoCaida(landmarks) {
     return;
   }
 
-  const landmarksCriticos = [leftShoulder, rightShoulder, leftHip, rightHip];
+  const landmarksCriticos = [nose, leftShoulder, rightShoulder, leftHip, rightHip];
   if (landmarksCriticos.some((landmark) => (landmark.visibility ?? 1) < VISIBILIDAD_MINIMA_VIDEO)) {
     analisisVideoCaida.lostTrackingFrames += 1;
     return;
@@ -3274,12 +3415,26 @@ function analizarVideoCaida(landmarks) {
   const hipMidY = (leftHip.y + rightHip.y) / 2;
   const shoulderMidX = (leftShoulder.x + rightShoulder.x) / 2;
   const hipMidX = (leftHip.x + rightHip.x) / 2;
+  const headOffsetX = nose.x - hipMidX;
+  const centerX = (shoulderMidX + hipMidX) / 2;
+  const centerY = (shoulderMidY + hipMidY) / 2;
   const trunkAngle =
     Math.abs(Math.atan2(shoulderMidX - hipMidX, hipMidY - shoulderMidY)) * (180 / Math.PI);
+
+  analisisVideoCaida.lastCenterX = centerX;
+  analisisVideoCaida.lastCenterY = centerY;
+  analisisVideoCaida.lastHeadX = nose.x;
+  analisisVideoCaida.lastHeadY = nose.y;
+  analisisVideoCaida.lastHipX = hipMidX;
+  analisisVideoCaida.lastHipY = hipMidY;
+  analisisVideoCaida.lastShoulderX = shoulderMidX;
+  analisisVideoCaida.lastShoulderY = shoulderMidY;
+  analisisVideoCaida.lastHeadOffsetX = headOffsetX;
 
   if (analisisVideoCaida.baselineHipY === null) {
     analisisVideoCaida.baselineHipY = hipMidY;
     analisisVideoCaida.baselineHipX = hipMidX;
+    analisisVideoCaida.baselineHeadOffsetX = headOffsetX;
     analisisVideoCaida.baselineTrunkAngle = trunkAngle;
     analisisVideoCaida.baselineFrames = 1;
     analisisVideoCaida.previousHipY = hipMidY;
@@ -3301,6 +3456,7 @@ function analizarVideoCaida(landmarks) {
     analisisVideoCaida.baselineFrames += 1;
     analisisVideoCaida.baselineHipY = (analisisVideoCaida.baselineHipY * 0.85) + (hipMidY * 0.15);
     analisisVideoCaida.baselineHipX = ((analisisVideoCaida.baselineHipX ?? hipMidX) * 0.85) + (hipMidX * 0.15);
+    analisisVideoCaida.baselineHeadOffsetX = ((analisisVideoCaida.baselineHeadOffsetX ?? headOffsetX) * 0.85) + (headOffsetX * 0.15);
     analisisVideoCaida.baselineTrunkAngle =
       ((analisisVideoCaida.baselineTrunkAngle ?? trunkAngle) * 0.85) + (trunkAngle * 0.15);
     analisisVideoCaida.previousHipY = hipMidY;
@@ -3309,6 +3465,7 @@ function analizarVideoCaida(landmarks) {
 
   const hipDropFromBaseline = hipMidY - analisisVideoCaida.baselineHipY;
   const hipLateralShift = Math.abs(hipMidX - (analisisVideoCaida.baselineHipX ?? hipMidX));
+  const headOffsetFromAxis = Math.abs(headOffsetX - (analisisVideoCaida.baselineHeadOffsetX ?? headOffsetX));
   const hipDropSpeed = hipMidY - (analisisVideoCaida.previousHipY ?? hipMidY);
   const trunkAngleDelta = Math.abs(trunkAngle - (analisisVideoCaida.baselineTrunkAngle ?? trunkAngle));
   analisisVideoCaida.previousHipY = hipMidY;
@@ -3324,6 +3481,10 @@ function analizarVideoCaida(landmarks) {
   analisisVideoCaida.maxTrunkAngleDelta = Math.max(
     analisisVideoCaida.maxTrunkAngleDelta,
     trunkAngleDelta
+  );
+  analisisVideoCaida.maxHeadOffsetFromAxis = Math.max(
+    analisisVideoCaida.maxHeadOffsetFromAxis,
+    headOffsetFromAxis
   );
   analisisVideoCaida.lastTrunkAngle = trunkAngle;
   analisisVideoCaida.seatedBackwardPattern =
@@ -3451,6 +3612,7 @@ function registrarCaidaVideo(tiempo, hipDropFromBaseline, trunkAngle, reasons, s
   analisisVideoCaida.detectionHipDrop = hipDropFromBaseline;
   analisisVideoCaida.detectionTrunkAngle = trunkAngle;
   analisisVideoCaida.detectionLateralShift = analisisVideoCaida.maxHipLateralShift;
+  analisisVideoCaida.detectionHeadOffset = analisisVideoCaida.lastHeadOffsetX;
   analisisVideoCaida.detectionLowPostureFrames = analisisVideoCaida.lowPostureFrames;
   analisisVideoCaida.detectionHorizontalFrames = analisisVideoCaida.horizontalFrames;
   analisisVideoCaida.fallReasons = reasons;
@@ -4021,6 +4183,11 @@ videoHeadFocusEl?.addEventListener("input", () => {
   rerenderVideoSummaryIfVisible();
 });
 
+videoSubjectRoleEl?.addEventListener("change", () => {
+  updateVideoHelp();
+  rerenderVideoSummaryIfVisible();
+});
+
 csvFileInputEl?.addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -4064,7 +4231,9 @@ videoElement?.addEventListener("play", () => {
   scheduleVideoFrameProcessing();
   updateControls();
   setStatus(
-    isTechnicalVideoAnalysisMode()
+    isUkemiVideoMode()
+      ? "Analizando video de ukemi en reproducción."
+      : isTechnicalVideoAnalysisMode()
       ? "Analizando video técnico en reproducción."
       : "Analizando video local en reproducción."
   );
@@ -4086,7 +4255,9 @@ videoElement?.addEventListener("pause", () => {
   }
   updateControls();
   setStatus(
-    isTechnicalVideoAnalysisMode()
+    isUkemiVideoMode()
+      ? "Video de ukemi en pausa. Podés seguir cuadro a cuadro y revisar eje, CG aproximado y cabeza."
+      : isTechnicalVideoAnalysisMode()
       ? "Video en pausa. Podés seguir analizando cuadro a cuadro o reanudar la reproducción."
       : "Video en pausa. Lo mostrado es un resultado parcial; podés reanudar para completar el análisis."
   );
@@ -4119,7 +4290,9 @@ videoElement?.addEventListener("ended", () => {
   updateControls();
   setStatus(
     analisisVideoCaida?.fallDetectedAt !== null
-      ? isTechnicalVideoAnalysisMode()
+      ? isUkemiVideoMode()
+        ? "Análisis de ukemi finalizado. El video quedó pausado cerca del momento más útil para revisar."
+        : isTechnicalVideoAnalysisMode()
         ? "Análisis del video finalizado. El video quedó pausado cerca del momento más útil para revisar."
         : "Análisis del video finalizado. El video quedó pausado cerca del mejor instante compatible con caída."
       : "Análisis del video finalizado."
