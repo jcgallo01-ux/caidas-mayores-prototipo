@@ -203,6 +203,7 @@ const cameraHelpEl = document.getElementById("cameraHelp");
 const videoHelpEl = document.getElementById("videoHelp");
 const videoAnalysisModeEl = document.getElementById("videoAnalysisMode");
 const videoSubjectRoleEl = document.getElementById("videoSubjectRole");
+const videoPersonSelectionEl = document.getElementById("videoPersonSelection");
 const videoExpectedDirectionEl = document.getElementById("videoExpectedDirection");
 const videoHeadFocusEl = document.getElementById("videoHeadFocus");
 const applyVideoModeButton = document.getElementById("applyVideoMode");
@@ -285,6 +286,24 @@ function getVideoSubjectRoleLabel() {
     default:
       return "protagonista visible";
   }
+}
+
+function getVideoPersonSelection() {
+  return videoPersonSelectionEl?.value || "auto";
+}
+
+function getVideoPersonSelectionLabel() {
+  if (typeof UkemiSelection?.getSelectionLabel === "function") {
+    return UkemiSelection.getSelectionLabel(getVideoPersonSelection(), "Auto");
+  }
+  return "Auto";
+}
+
+function getVideoPersonSelectionHint() {
+  if (typeof UkemiSelection?.getSelectionHint === "function") {
+    return UkemiSelection.getSelectionHint(getVideoPersonSelection());
+  }
+  return "Análisis automático del protagonista visible.";
 }
 
 function getVideoExpectedDirection() {
@@ -1807,7 +1826,8 @@ function getVideoContextNotes() {
 
   if (isUkemiVideoMode()) {
     notes.push(`Protagonista seleccionado para seguimiento: ${subjectRole}.`);
-    notes.push("En esta versión se sigue el protagonista más visible en cuadro; el seguimiento simultáneo de ambos queda como siguiente etapa.");
+    notes.push(`Persona activa para el análisis: ${getVideoPersonSelectionLabel()}.`);
+    notes.push(getVideoPersonSelectionHint());
   }
 
   if (getVideoExpectedDirection()) {
@@ -1861,13 +1881,14 @@ function renderUkemiOverlay(landmarks) {
   canvasCtx.arc(headX, headY, 11, 0, Math.PI * 2);
   canvasCtx.stroke();
 
-  canvasCtx.fillStyle = "rgba(10, 15, 20, 0.72)";
-  canvasCtx.fillRect(18, canvasElement.height - 92, 250, 72);
+  canvasCtx.fillStyle = "rgba(10, 15, 20, 0.78)";
+  canvasCtx.fillRect(18, canvasElement.height - 108, 290, 84);
   canvasCtx.fillStyle = "#f8fafc";
-  canvasCtx.font = "bold 16px Arial";
-  canvasCtx.fillText(`Ukemi: ${getVideoSubjectRoleLabel()}`, 30, canvasElement.height - 62);
-  canvasCtx.font = "14px Arial";
-  canvasCtx.fillText("CG aprox. y eje resaltados", 30, canvasElement.height - 38);
+  canvasCtx.font = "bold 15px Arial";
+  canvasCtx.fillText(`Ukemi: ${getVideoSubjectRoleLabel()}`, 30, canvasElement.height - 78);
+  canvasCtx.font = "13px Arial";
+  canvasCtx.fillText(`Persona activa: ${getVideoPersonSelectionLabel()}`, 30, canvasElement.height - 54);
+  canvasCtx.fillText("CG aprox. y eje resaltados", 30, canvasElement.height - 34);
   canvasCtx.restore();
 }
 
@@ -2149,6 +2170,7 @@ function renderResultadoVideoCaida() {
     ? `
         <p><strong>Modo:</strong> análisis básico de ukemi sobre el protagonista visible.</p>
         <p><strong>Rol elegido:</strong> ${getVideoSubjectRoleLabel()}.</p>
+        <p><strong>Persona activa:</strong> ${getVideoPersonSelectionLabel()}.</p>
         <p><strong>Dirección esperada:</strong> ${getVideoExpectedDirectionLabel()}.</p>
         <p><strong>Descenso máximo respecto de la base:</strong> ${descensoMaximo}</p>
         <p><strong>Desvío lateral máximo:</strong> ${lateralMaximo} (${lateralLabel})</p>
@@ -2225,7 +2247,7 @@ function renderResultadoVideoCaida() {
           </ul>
         </div>
         <p class="resultado-nota">${ukemiMode
-          ? "Nota: este modo de ukemi todavía sigue un solo protagonista visible. La comparación simultánea de ambos practicantes será el siguiente paso."
+          ? `Nota: este modo de ukemi usa la persona activa seleccionada como foco principal. Si hay dos practicantes, podés elegir Persona A o Persona B para marcar el enfoque de revisión.`
           : technicalMode
           ? "Nota: este modo usa el mismo pose tracking para resumir el movimiento, pero no clasifica aprobación técnica ni interpreta el evento como caída clínica."
           : "Nota: este módulo es exploratorio. Sirve para revisar un video con pose tracking y una heurística inicial, pero no valida por sí solo una caída real ni reemplaza evaluación profesional."}</p>
@@ -2330,7 +2352,7 @@ function updateVideoHelp(message = null) {
 
   if (sourceMode === "file") {
     videoHelpEl.textContent = isUkemiVideoMode()
-      ? `Video cargado${uploadedVideoName ? `: ${uploadedVideoName}` : ""}. Modo Ukemi: seguí al protagonista visible, revisá cuadro a cuadro y usá los vectores, eje, CG aproximado y cabeza como guía básica.`
+      ? `Video cargado${uploadedVideoName ? `: ${uploadedVideoName}` : ""}. Modo Ukemi: elegí la persona activa (${getVideoPersonSelectionLabel()}) si hay dos practicantes, revisá cuadro a cuadro y usá los vectores, eje, CG aproximado y cabeza como guía básica.`
       : isTechnicalVideoAnalysisMode()
       ? `Video cargado${uploadedVideoName ? `: ${uploadedVideoName}` : ""}. Elegí el contexto y usá 'Aplicar análisis' para revisar el movimiento sin clasificarlo como caída.`
       : `Video cargado${uploadedVideoName ? `: ${uploadedVideoName}` : ""}. Usá 'Aplicar análisis' para correr la detección de caída con el modo seleccionado.`;
@@ -4184,6 +4206,11 @@ videoHeadFocusEl?.addEventListener("input", () => {
 });
 
 videoSubjectRoleEl?.addEventListener("change", () => {
+  updateVideoHelp();
+  rerenderVideoSummaryIfVisible();
+});
+
+videoPersonSelectionEl?.addEventListener("change", () => {
   updateVideoHelp();
   rerenderVideoSummaryIfVisible();
 });

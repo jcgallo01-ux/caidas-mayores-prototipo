@@ -251,6 +251,14 @@
                     </select>
                   </div>
                   <div class="campo">
+                    <label for="videoPersonSelection">Persona a seguir</label>
+                    <select id="videoPersonSelection">
+                      <option value="auto">Auto / protagonista visible</option>
+                      <option value="persona_a">Persona A</option>
+                      <option value="persona_b">Persona B</option>
+                    </select>
+                  </div>
+                  <div class="campo">
                     <label for="videoExpectedDirection">Tipo / dirección esperada</label>
                     <select id="videoExpectedDirection">
                       <option value="">Sin especificar</option>
@@ -303,6 +311,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <script src="js/ukemiSelection.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
