@@ -18,13 +18,44 @@
       </div>
       <div class="hero-actions">
         <div class="hero-chip">Prototipo clínico</div>
+        <div id="viewSwitcher" class="view-switcher" hidden>
+          <button class="ghost-button nav-view-button" type="button" data-go-view="home">Home</button>
+          <button class="ghost-button nav-view-button" type="button" data-go-view="individuals">Individuos</button>
+          <button class="ghost-button nav-view-button" type="button" data-go-view="tests">Pruebas</button>
+          <button class="ghost-button nav-view-button" type="button" data-go-view="analysis">Análisis</button>
+        </div>
         <button id="toggleSidebar" class="ghost-button" type="button">Ocultar panel lateral</button>
       </div>
     </section>
 
-    <div class="layout">
+    <section id="homeHub" class="home-hub panel">
+      <div class="home-hub-copy">
+        <p class="section-kicker">Inicio</p>
+        <h2>Elegí cómo querés entrar al prototipo</h2>
+        <p>La home reduce el scroll inicial y te lleva directo a la tarea que sigue: gestionar personas, correr pruebas o revisar videos.</p>
+      </div>
+      <div class="home-grid">
+        <button class="home-card" type="button" data-go-view="individuals">
+          <span class="home-card-kicker">Individuos</span>
+          <strong>Ficha, búsqueda e historial</strong>
+          <span>Alta de paciente, búsqueda filtrada, pendientes e historial de resultados.</span>
+        </button>
+        <button class="home-card" type="button" data-go-view="tests">
+          <span class="home-card-kicker">Pruebas</span>
+          <strong>Cámara y evaluación funcional</strong>
+          <span>Monopedia, TUG y Sit to Stand con foco en captura y ejecución clínica.</span>
+        </button>
+        <button class="home-card" type="button" data-go-view="analysis">
+          <span class="home-card-kicker">Análisis</span>
+          <strong>Video, caída y ukemis</strong>
+          <span>Carga de archivos, revisión cuadro a cuadro y análisis técnico o de ukemi.</span>
+        </button>
+      </div>
+    </section>
+
+    <div class="layout" id="appLayout">
       <section class="sidebar">
-        <details class="panel section-panel compact-section" open>
+        <details class="panel section-panel compact-section" data-view-section="individuals" open>
           <summary class="compact-summary">
             <div>
               <p class="section-kicker">Búsqueda</p>
@@ -67,7 +98,7 @@
           </div>
         </details>
 
-        <details class="panel section-panel compact-section" open>
+        <details class="panel section-panel compact-section" data-view-section="individuals" open>
           <summary class="compact-summary">
             <div>
               <p class="section-kicker">Datos</p>
@@ -120,7 +151,7 @@
           </div>
         </details>
 
-        <details class="panel section-panel compact-section" open>
+        <details class="panel section-panel compact-section" data-view-section="tests" open>
           <summary class="compact-summary">
             <div>
               <p class="section-kicker">Prueba</p>
@@ -151,7 +182,15 @@
       </section>
 
       <section class="content">
-        <div class="media-panel">
+        <div id="individualsOverview" class="panel section-panel view-panel">
+          <div class="section-head">
+            <p class="section-kicker">Individuos</p>
+            <h2>Gestión de personas y seguimiento</h2>
+          </div>
+          <p class="view-panel-copy">Usá el panel lateral para buscar, crear o completar fichas. Desde acá concentramos identidad, centro, observaciones y resultados previos sin mezclarlo con captura o video.</p>
+        </div>
+
+        <div class="media-panel" data-view-section="tests analysis">
           <div class="status-row">
             <div id="status" class="status-card">Complete paciente o encienda cámara para empezar.</div>
             <div id="timer" class="timer-card">00:00</div>
@@ -169,7 +208,7 @@
             <video id="video" autoplay playsinline muted></video>
           </div>
 
-          <details class="panel section-panel controls-panel compact-section" open>
+          <details class="panel section-panel controls-panel compact-section" data-view-section="tests" open>
             <summary class="compact-summary">
               <div>
                 <p class="section-kicker">Cámara</p>
@@ -222,7 +261,18 @@
               </div>
 
               <div id="cameraHelp" class="camera-help"></div>
+            </div>
+          </details>
 
+          <details class="panel section-panel controls-panel compact-section" data-view-section="analysis" open>
+            <summary class="compact-summary">
+              <div>
+                <p class="section-kicker">Análisis</p>
+                <h2>Video y revisión técnica</h2>
+              </div>
+              <span class="compact-chevron" aria-hidden="true"></span>
+            </summary>
+            <div class="compact-body">
               <div class="video-upload-block">
                 <div class="video-upload-header">
                   <div>
@@ -280,7 +330,7 @@
             </div>
           </details>
 
-          <div id="resumen" class="summary-panel">Sin datos todavía.</div>
+          <div id="resumen" class="summary-panel" data-view-section="tests analysis">Sin datos todavía.</div>
         </div>
       </section>
     </div>

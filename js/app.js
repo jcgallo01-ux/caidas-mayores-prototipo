@@ -221,6 +221,12 @@ const patientHelpEl = document.getElementById("patientHelp");
 const historyPanelEl = document.getElementById("historyPanel");
 const testPhaseHelpEl = document.getElementById("testPhaseHelp");
 const toggleSidebarButton = document.getElementById("toggleSidebar");
+const homeHubEl = document.getElementById("homeHub");
+const appLayoutEl = document.getElementById("appLayout");
+const viewSwitcherEl = document.getElementById("viewSwitcher");
+const viewButtons = Array.from(document.querySelectorAll("[data-go-view]"));
+const viewScopedElements = Array.from(document.querySelectorAll("[data-view-section]"));
+const individualsOverviewEl = document.getElementById("individualsOverview");
 
 const statusEl = document.getElementById("status");
 const timerEl = document.getElementById("timer");
@@ -247,6 +253,7 @@ const STORAGE_KEY = "caidasMayoresRegistroV1";
 const RENDER_MODE_STORAGE_KEY = "caidasMayoresRenderModeV1";
 const FRAMING_MODE_STORAGE_KEY = "caidasMayoresFramingModeV1";
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "caidasMayoresSidebarCollapsedV1";
+const ACTIVE_VIEW_STORAGE_KEY = "caidasMayoresActiveViewV1";
 
 function normalizeText(texto) {
   return String(texto || "")
@@ -2370,6 +2377,13 @@ function syncSourceModeUi() {
 function syncSidebarButtonLabel() {
   if (!toggleSidebarButton) return;
 
+  if (document.body.classList.contains("view-home")) {
+    toggleSidebarButton.hidden = true;
+    return;
+  }
+
+  toggleSidebarButton.hidden = false;
+
   toggleSidebarButton.textContent = document.body.classList.contains("sidebar-collapsed")
     ? (isCompactViewport() ? "Mostrar ficha paciente" : "Mostrar panel lateral")
     : (isCompactViewport() ? "Ocultar ficha paciente" : "Ocultar panel lateral");
@@ -2397,6 +2411,62 @@ function collapseSidebarForMobileWork() {
   if (!isCompactViewport()) return;
   if (document.body.classList.contains("sidebar-collapsed")) return;
   setSidebarCollapsed(true, false);
+}
+
+function normalizeAppView(view) {
+  if (["home", "individuals", "tests", "analysis"].includes(view)) return view;
+  return "home";
+}
+
+function matchesViewScope(element, activeView) {
+  const scopes = (element.dataset.viewSection || "")
+    .split(/\s+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return scopes.includes(activeView);
+}
+
+function syncViewButtons(activeView) {
+  viewButtons.forEach((button) => {
+    const isActive = button.dataset.goView === activeView;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
+function setActiveView(view, { persist = true } = {}) {
+  const activeView = normalizeAppView(view);
+
+  ["home", "individuals", "tests", "analysis"].forEach((name) => {
+    document.body.classList.toggle(`view-${name}`, name === activeView);
+  });
+
+  homeHubEl?.classList.toggle("is-hidden", activeView !== "home");
+  appLayoutEl?.classList.toggle("is-hidden", activeView === "home");
+  if (viewSwitcherEl) {
+    viewSwitcherEl.hidden = activeView === "home";
+  }
+  individualsOverviewEl?.classList.toggle("is-hidden", activeView !== "individuals");
+
+  viewScopedElements.forEach((element) => {
+    element.classList.toggle("is-hidden", !matchesViewScope(element, activeView));
+  });
+
+  if (activeView === "individuals") {
+    setSidebarCollapsed(false, false);
+  }
+
+  syncViewButtons(activeView);
+  syncSidebarButtonLabel();
+
+  if (persist) {
+    localStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, activeView);
+  }
+}
+
+function loadActiveViewPreference() {
+  const stored = localStorage.getItem(ACTIVE_VIEW_STORAGE_KEY);
+  setActiveView(normalizeAppView(stored || "home"), { persist: false });
 }
 
 function syncRenderModeControl() {
@@ -4180,6 +4250,12 @@ importCsvButton?.addEventListener("click", () => {
   csvFileInputEl?.click();
 });
 
+viewButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveView(button.dataset.goView || "home");
+  });
+});
+
 loadVideoButton?.addEventListener("click", () => {
   videoFileInputEl?.click();
 });
@@ -4369,6 +4445,12 @@ nextFrameButton?.addEventListener("click", () => {
   stepVideoFrame(1);
 });
 
+[prevFrameButton, nextFrameButton].forEach((button) => {
+  button?.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+  });
+});
+
 [nombrePacienteEl, patientIdentifierEl, sexoPacienteEl, centroEl, observacionesEl].forEach((field) => {
   field?.addEventListener("input", () => {
     if (field === nombrePacienteEl) {
@@ -4458,6 +4540,7 @@ syncSourceModeUi();
 updateVideoHelp();
 renderPatientHelp();
 applySidebarPreference();
+loadActiveViewPreference();
 refreshCameraDevices();
 updateReviewResultButton();
 setStatus("Complete paciente o encienda cámara para empezar.");
