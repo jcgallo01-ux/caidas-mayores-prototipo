@@ -13,8 +13,13 @@ let renderMode = "privacy";
 let sourceMode = "camera";
 let uploadedVideoUrl = null;
 let uploadedVideoName = "";
+let uploadedVideoLocalRef = "";
 let currentPatientId = null;
 let lastCompletedTestRecord = null;
+let quickVideoPatientId = null;
+let quickVideoRecordId = null;
+let quickVideoAnalysisTimestamp = "";
+let videoExportInProgress = false;
 let patientRegistry = {
   patients: [],
   tests: []
@@ -207,6 +212,15 @@ const videoPersonSelectionEl = document.getElementById("videoPersonSelection");
 const videoExpectedDirectionEl = document.getElementById("videoExpectedDirection");
 const videoHeadFocusEl = document.getElementById("videoHeadFocus");
 const applyVideoModeButton = document.getElementById("applyVideoMode");
+const exportAnalyzedVideoButton = document.getElementById("exportAnalyzedVideo");
+const quickVideoRecordPanelEl = document.getElementById("quickVideoRecordPanel");
+const quickPatientAliasEl = document.getElementById("quickPatientAlias");
+const quickPatientSexEl = document.getElementById("quickPatientSex");
+const quickAnalysisDateEl = document.getElementById("quickAnalysisDate");
+const quickVideoSourceEl = document.getElementById("quickVideoSource");
+const quickPatientNotesEl = document.getElementById("quickPatientNotes");
+const createQuickRecordButton = document.getElementById("createQuickRecord");
+const viewQuickRecordButton = document.getElementById("viewQuickRecord");
 const patientSearchNameEl = document.getElementById("patientSearchName");
 const patientSearchIdEl = document.getElementById("patientSearchId");
 const patientSearchCenterEl = document.getElementById("patientSearchCenter");
@@ -774,6 +788,12 @@ function getPruebaActual() {
 
 function getNombrePrueba(prueba) {
   switch (prueba) {
+    case "video_fall":
+      return "Video: alerta de caída";
+    case "video_analysis":
+      return "Video: análisis técnico";
+    case "video_ukemi":
+      return "Video: análisis ukemi";
     case "sit_to_stand":
       return "Sit to Stand";
     case "tug":
@@ -783,6 +803,16 @@ function getNombrePrueba(prueba) {
     default:
       return "Monopedia";
   }
+}
+
+function getCurrentVideoStudyType() {
+  if (isUkemiVideoMode()) return "video_ukemi";
+  if (isTechnicalVideoAnalysisMode()) return "video_analysis";
+  return "video_fall";
+}
+
+function getCurrentVideoStudyLabel() {
+  return getNombrePrueba(getCurrentVideoStudyType());
 }
 
 function getRangoReferenciaSitToStandPorEdad(edad) {
@@ -1673,8 +1703,18 @@ function getNotasCompensacion(eventos, tiempoSegundos, motivoFin = "") {
 }
 
 function saveCompletedTestRecord(record) {
-  patientRegistry.tests.push(record);
-  lastCompletedTestRecord = record;
+  const index = record?.id
+    ? patientRegistry.tests.findIndex((existingRecord) => existingRecord.id === record.id)
+    : -1;
+
+  if (index >= 0) {
+    patientRegistry.tests[index] = { ...patientRegistry.tests[index], ...record };
+    lastCompletedTestRecord = patientRegistry.tests[index];
+  } else {
+    patientRegistry.tests.push(record);
+    lastCompletedTestRecord = record;
+  }
+
   saveRegistry();
   renderPatientSelect();
   renderPatientHistory();
@@ -1724,6 +1764,87 @@ function savePendingPatientFromForm() {
   renderPatientHistory();
   updateControls();
   setStatus(`Ficha pendiente creada: ${patient.patientCode || "Sin ID"}.`);
+  return patient;
+}
+
+function createQuickVideoRecord() {
+  if (sourceMode !== "file" || !uploadedVideoName) {
+    setStatus("Primero cargá un video local para crear la ficha rápida.");
+    return null;
+  }
+
+  const alias = quickPatientAliasEl?.value?.trim() || "";
+  const centroActual = centroEl?.value?.trim() || "Patricios";
+  const patient = upsertPatient({
+    id: quickVideoPatientId || undefined,
+    nombre: alias,
+    sexo: quickPatientSexEl?.value || "",
+    centro: centroActual,
+    observaciones: buildQuickVideoObservation(),
+    pending: !alias
+  });
+
+  quickVideoPatientId = patient.id;
+  quickVideoRecordId = quickVideoRecordId || createId("test");
+
+  const detected = Boolean(analisisVideoCaida?.fallDetectedAt !== null);
+  const completed = Boolean(analisisVideoCaida?.analysisCompleted);
+  const studyType = getCurrentVideoStudyType();
+  const resultTitle = isUkemiVideoMode()
+    ? detected
+      ? "Ukemi con instante destacado"
+      : completed
+        ? "Ukemi revisado"
+        : "Ukemi en revisión"
+    : isTechnicalVideoAnalysisMode()
+      ? detected
+        ? "Análisis técnico con instante destacado"
+        : completed
+          ? "Análisis técnico completado"
+          : "Análisis técnico en revisión"
+      : detected
+        ? "Posible caída detectada"
+        : completed
+          ? "Sin caída clara"
+          : "Análisis de caída en revisión";
+  const resultColor = isUkemiVideoMode()
+    ? "verde"
+    : isTechnicalVideoAnalysisMode()
+      ? "amarillo"
+      : detected
+        ? "rojo"
+        : "verde";
+  const resultLevel = resultColor === "rojo" ? "alto" : resultColor === "amarillo" ? "moderado" : "bajo";
+
+  saveCompletedTestRecord({
+    id: quickVideoRecordId,
+    timestamp: quickVideoAnalysisTimestamp || new Date().toISOString(),
+    patientId: patient.id,
+    patientCode: patient.patientCode || "",
+    patientIdentifier: patient.identificador || "",
+    patientName: getPatientDisplayName(patient),
+    fechaNacimiento: patient.fechaNacimiento || "",
+    edad: getPatientAge(patient),
+    sexo: patient.sexo || "",
+    centro: patient.centro || "",
+    prueba: studyType,
+    observaciones: buildQuickVideoObservation(),
+    tiempoSegundos: Number(analisisVideoCaida?.fallDetectedAt ?? 0),
+    resultadoNivel: resultLevel,
+    resultadoColor: resultColor,
+    resultadoTitulo: resultTitle,
+    motivoFin: uploadedVideoName
+  });
+
+  fillPatientForm(patient);
+  renderPatientHistory();
+  renderPatientHelp(
+    alias
+      ? `Ficha rápida guardada para ${alias}. Podés completarla después sin perder el análisis de video.`
+      : `Ficha rápida pendiente ${patient.patientCode || ""} creada con el análisis de video actual.`
+  );
+  syncQuickVideoRecordPanel();
+  setStatus("Ficha rápida y resultado del video guardados.");
   return patient;
 }
 
@@ -1783,6 +1904,123 @@ function updateFrameStepButtons() {
 function updateApplyVideoModeButton() {
   if (!applyVideoModeButton) return;
   applyVideoModeButton.disabled = !(sourceMode === "file" && Boolean(uploadedVideoUrl || videoElement?.src));
+}
+
+function canExportAnalyzedVideo() {
+  return Boolean(
+    sourceMode === "file" &&
+    uploadedVideoUrl &&
+    canvasElement?.captureStream &&
+    typeof MediaRecorder !== "undefined"
+  );
+}
+
+function updateExportAnalyzedVideoButton() {
+  if (!exportAnalyzedVideoButton) return;
+
+  exportAnalyzedVideoButton.hidden = !canExportAnalyzedVideo();
+  exportAnalyzedVideoButton.disabled = !canExportAnalyzedVideo() || videoExportInProgress;
+  exportAnalyzedVideoButton.textContent = videoExportInProgress
+    ? "Exportando video..."
+    : "Exportar video analizado";
+}
+
+function getVideoExportFormat() {
+  const formats = [
+    { mimeType: "video/mp4;codecs=avc1.42E01E", extension: "mp4" },
+    { mimeType: "video/webm;codecs=vp9", extension: "webm" },
+    { mimeType: "video/webm;codecs=vp8", extension: "webm" },
+    { mimeType: "video/webm", extension: "webm" }
+  ];
+
+  return formats.find((format) => MediaRecorder.isTypeSupported?.(format.mimeType)) || {
+    mimeType: "",
+    extension: "webm"
+  };
+}
+
+function waitForVideoSeek(time) {
+  return new Promise((resolve) => {
+    if (Math.abs((videoElement.currentTime || 0) - time) < 0.01) {
+      resolve();
+      return;
+    }
+
+    videoElement.addEventListener("seeked", resolve, { once: true });
+    videoElement.currentTime = time;
+  });
+}
+
+async function exportAnalyzedVideo() {
+  if (!canExportAnalyzedVideo() || videoExportInProgress) {
+    setStatus("La exportación no está disponible para este video o navegador.");
+    return;
+  }
+
+  const previousTime = videoElement.currentTime || 0;
+  const exportFormat = getVideoExportFormat();
+  const canvasStream = canvasElement.captureStream(30);
+  const chunks = [];
+  let recorder;
+
+  try {
+    recorder = exportFormat.mimeType
+      ? new MediaRecorder(canvasStream, { mimeType: exportFormat.mimeType })
+      : new MediaRecorder(canvasStream);
+  } catch (error) {
+    console.error("No se pudo iniciar la exportación", error);
+    setStatus("Este navegador no pudo preparar el video analizado para descargar.");
+    return;
+  }
+
+  videoExportInProgress = true;
+  updateExportAnalyzedVideoButton();
+  videoElement.pause();
+  await waitForVideoSeek(0);
+  await renderCurrentVideoFrame();
+
+  const stopExport = () => {
+    if (recorder.state !== "inactive") recorder.stop();
+  };
+
+  const exportFinished = new Promise((resolve, reject) => {
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data?.size) chunks.push(event.data);
+    });
+    recorder.addEventListener("error", () => reject(new Error("No se pudo generar el archivo de video.")), { once: true });
+    recorder.addEventListener("stop", resolve, { once: true });
+  });
+
+  videoElement.addEventListener("ended", stopExport, { once: true });
+  recorder.start(250);
+  setStatus("Exportando video analizado. Se reproducirá una vez desde el inicio.");
+
+  try {
+    await videoElement.play();
+    await exportFinished;
+
+    const blob = new Blob(chunks, { type: recorder.mimeType || "video/webm" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const baseName = (uploadedVideoName || "analisis").replace(/\.[^.]+$/, "").replace(/[^a-z0-9_-]+/gi, "_");
+    link.href = url;
+    link.download = `${baseName}_analizado.${exportFormat.extension}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setStatus("Video analizado exportado. Revisá la carpeta de descargas.");
+  } catch (error) {
+    console.error("No se pudo exportar el video analizado", error);
+    stopExport();
+    setStatus("No se pudo exportar el video analizado.");
+  } finally {
+    videoExportInProgress = false;
+    updateExportAnalyzedVideoButton();
+    if (videoElement.duration && previousTime < videoElement.duration) {
+      videoElement.currentTime = previousTime;
+    }
+  }
 }
 
 function stepVideoFrame(direction = 1) {
@@ -2370,8 +2608,63 @@ function updateVideoHelp(message = null) {
     "Beta: cargá un video local para revisar una posible caída, hacer análisis técnico o una lectura básica de ukemi.";
 }
 
+function getQuickVideoSourceLabel() {
+  if (uploadedVideoLocalRef) return uploadedVideoLocalRef;
+  if (uploadedVideoName) return `Archivo local: ${uploadedVideoName}`;
+  return "Video local no especificado";
+}
+
+function syncQuickVideoRecordPanel() {
+  if (!quickVideoRecordPanelEl) return;
+
+  const show = sourceMode === "file" && Boolean(uploadedVideoUrl || videoElement?.src);
+  quickVideoRecordPanelEl.hidden = !show;
+
+  if (!show) return;
+
+  if (quickAnalysisDateEl && !quickAnalysisDateEl.value) {
+    quickAnalysisDateEl.value = quickVideoAnalysisTimestamp
+      ? formatDateTime(quickVideoAnalysisTimestamp)
+      : formatDateTime(new Date().toISOString());
+  }
+
+  if (quickVideoSourceEl) {
+    quickVideoSourceEl.value = getQuickVideoSourceLabel();
+  }
+
+  if (viewQuickRecordButton) {
+    viewQuickRecordButton.hidden = !quickVideoPatientId;
+  }
+}
+
+function resetQuickVideoRecordDraft() {
+  quickVideoPatientId = null;
+  quickVideoRecordId = null;
+  quickVideoAnalysisTimestamp = new Date().toISOString();
+
+  if (quickPatientAliasEl) quickPatientAliasEl.value = "";
+  if (quickPatientSexEl) quickPatientSexEl.value = "";
+  if (quickPatientNotesEl) quickPatientNotesEl.value = "";
+  if (quickAnalysisDateEl) quickAnalysisDateEl.value = formatDateTime(quickVideoAnalysisTimestamp);
+  if (quickVideoSourceEl) quickVideoSourceEl.value = getQuickVideoSourceLabel();
+  if (viewQuickRecordButton) viewQuickRecordButton.hidden = true;
+}
+
+function buildQuickVideoObservation() {
+  const chunks = [
+    quickPatientNotesEl?.value?.trim() || "",
+    `Fecha automática del análisis: ${formatDateTime(quickVideoAnalysisTimestamp || new Date().toISOString())}.`,
+    `${getCurrentVideoStudyLabel()}.`,
+    getQuickVideoSourceLabel(),
+    uploadedVideoName ? `Archivo: ${uploadedVideoName}.` : ""
+  ].filter(Boolean);
+
+  return chunks.join(" ");
+}
+
 function syncSourceModeUi() {
   document.body.classList.toggle("file-source", sourceMode === "file");
+  syncQuickVideoRecordPanel();
 }
 
 function syncSidebarButtonLabel() {
@@ -2936,10 +3229,52 @@ function drawFramingGuidance(landmarks) {
   canvasCtx.restore();
 }
 
+function drawExportFallAlert() {
+  if (
+    !videoExportInProgress ||
+    getVideoAnalysisMode() !== "fall" ||
+    analisisVideoCaida?.fallDetectedAt === null
+  ) {
+    return;
+  }
+
+  const x = 18;
+  const y = 18;
+  const width = Math.min(canvasElement.width - 36, 510);
+  const height = 78;
+
+  canvasCtx.save();
+  canvasCtx.fillStyle = "rgba(185, 28, 28, 0.94)";
+  canvasCtx.strokeStyle = "rgba(255, 235, 235, 0.92)";
+  canvasCtx.lineWidth = 2;
+  if (typeof canvasCtx.roundRect === "function") {
+    canvasCtx.beginPath();
+    canvasCtx.roundRect(x, y, width, height, 14);
+    canvasCtx.fill();
+    canvasCtx.stroke();
+  } else {
+    canvasCtx.fillRect(x, y, width, height);
+    canvasCtx.strokeRect(x, y, width, height);
+  }
+
+  canvasCtx.fillStyle = "#fff7f7";
+  canvasCtx.textAlign = "left";
+  canvasCtx.textBaseline = "middle";
+  canvasCtx.font = "bold 25px Arial";
+  canvasCtx.fillText("ALERTA: CAIDA DETECTADA", x + 18, y + 28);
+  canvasCtx.font = "18px Arial";
+  canvasCtx.fillText(
+    `Momento destacado: ${formatSeconds(analisisVideoCaida.fallDetectedAt)}`,
+    x + 18,
+    y + 57
+  );
+  canvasCtx.restore();
+}
+
 function renderPoseFrame(results) {
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-  if (renderMode === "camera") {
+  if (renderMode === "camera" || videoExportInProgress) {
     canvasCtx.drawImage(results.image, 0, 0);
   } else {
     drawPrivacyBackground();
@@ -2954,6 +3289,8 @@ function renderPoseFrame(results) {
       drawFramingGuidance(results.poseLandmarks);
     }
   }
+
+  drawExportFallAlert();
 }
 
 function syncTestActionButtons() {
@@ -2989,6 +3326,7 @@ function updateControls() {
     savePendingPatientButton.disabled = !Boolean(centroEl?.value?.trim());
   }
   updateApplyVideoModeButton();
+  updateExportAnalyzedVideoButton();
   syncTestActionButtons();
   renderTestPhaseHelp();
 }
@@ -3911,7 +4249,7 @@ pose.onResults((results) => {
         procesarTrigger(results);
         analizarEstabilidadMonopedia(results.poseLandmarks);
       }
-    } else {
+    } else if (!videoExportInProgress) {
       analizarVideoCaida(results.poseLandmarks);
     }
 
@@ -4061,6 +4399,8 @@ async function startVideoAnalysis(file) {
   syncSourceModeUi();
   analisisVideoCaida = crearAnalisisVideoCaida();
   uploadedVideoName = file.name || "";
+  uploadedVideoLocalRef = `Archivo local: ${file.name || "video"}`;
+  resetQuickVideoRecordDraft();
   limpiarResumen();
   updateVideoHelp();
 
@@ -4090,6 +4430,8 @@ async function startVideoAnalysis(file) {
   updateReplayEventButton();
   updateFrameStepButtons();
   updateApplyVideoModeButton();
+  updateExportAnalyzedVideoButton();
+  syncQuickVideoRecordPanel();
 }
 
 function stopCamera(options = {}) {
@@ -4119,6 +4461,10 @@ function stopCamera(options = {}) {
     uploadedVideoUrl = null;
   }
   uploadedVideoName = "";
+  uploadedVideoLocalRef = "";
+  quickVideoPatientId = null;
+  quickVideoRecordId = null;
+  quickVideoAnalysisTimestamp = "";
   timerEl.textContent = "0.0 s";
   if (!preserveSummary) {
     limpiarResumen();
@@ -4256,6 +4602,30 @@ viewButtons.forEach((button) => {
   });
 });
 
+createQuickRecordButton?.addEventListener("click", () => {
+  const patient = createQuickVideoRecord();
+  if (!patient) return;
+  syncQuickVideoRecordPanel();
+});
+
+exportAnalyzedVideoButton?.addEventListener("click", () => {
+  exportAnalyzedVideo();
+});
+
+viewQuickRecordButton?.addEventListener("click", () => {
+  const patient = quickVideoPatientId ? findPatientById(quickVideoPatientId) : null;
+  if (!patient) {
+    setStatus("Todavía no hay una ficha rápida guardada para este video.");
+    return;
+  }
+
+  setActiveView("individuals");
+  fillPatientForm(patient);
+  renderPatientHistory();
+  renderPatientHelp("Ficha rápida abierta. Podés completar datos administrativos más tarde.");
+  smoothScrollToElement(historyPanelEl || patientHelpEl || nombrePacienteEl, "start");
+});
+
 loadVideoButton?.addEventListener("click", () => {
   videoFileInputEl?.click();
 });
@@ -4385,7 +4755,7 @@ videoElement?.addEventListener("ended", () => {
   if (analisisVideoCaida) {
     analisisVideoCaida.analysisCompleted = true;
     renderResultadoVideoCaida();
-    if (analisisVideoCaida.fallDetectedAt !== null) {
+    if (!videoExportInProgress && analisisVideoCaida.fallDetectedAt !== null) {
       videoElement.currentTime = Math.max(0, analisisVideoCaida.fallDetectedAt - 0.9);
       videoElement.pause();
     }
@@ -4403,6 +4773,7 @@ videoElement?.addEventListener("ended", () => {
   updateFallAlertChip();
   updateReplayEventButton();
   updateFrameStepButtons();
+  updateExportAnalyzedVideoButton();
 });
 
 saveCsvButton?.addEventListener("click", downloadCsv);

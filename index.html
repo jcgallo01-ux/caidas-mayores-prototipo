@@ -325,6 +325,45 @@
                 </div>
                 <div class="acciones video-analysis-actions">
                   <button id="applyVideoMode" type="button">Aplicar análisis</button>
+                  <button id="exportAnalyzedVideo" class="ghost-button" type="button" hidden>Exportar video analizado</button>
+                </div>
+                <div id="quickVideoRecordPanel" class="quick-video-record" hidden>
+                  <div class="quick-video-record-header">
+                    <div>
+                      <p class="section-kicker">Ficha rápida</p>
+                      <h3>Guardar este análisis</h3>
+                    </div>
+                    <button id="viewQuickRecord" class="ghost-button" type="button" hidden>Ver ficha rápida</button>
+                  </div>
+                  <div class="fila">
+                    <div class="campo">
+                      <label for="quickPatientAlias">Nombre o alias</label>
+                      <input id="quickPatientAlias" type="text" placeholder="Ej. Paciente 1 / M. Perez">
+                    </div>
+                    <div class="campo">
+                      <label for="quickPatientSex">Sexo</label>
+                      <select id="quickPatientSex">
+                        <option value="">Sin especificar</option>
+                        <option value="F">F</option>
+                        <option value="M">M</option>
+                      </select>
+                    </div>
+                    <div class="campo">
+                      <label for="quickAnalysisDate">Fecha del análisis</label>
+                      <input id="quickAnalysisDate" type="text" readonly>
+                    </div>
+                    <div class="campo campo-amplio">
+                      <label for="quickVideoSource">Video local</label>
+                      <input id="quickVideoSource" type="text" readonly>
+                    </div>
+                    <div class="campo campo-amplio">
+                      <label for="quickPatientNotes">Datos menores / notas</label>
+                      <input id="quickPatientNotes" type="text" placeholder="Ej. alerta trasera, silla baja, revisión pendiente">
+                    </div>
+                  </div>
+                  <div class="acciones quick-video-record-actions">
+                    <button id="createQuickRecord" type="button">Crear ficha rápida</button>
+                  </div>
                 </div>
               </div>
             </div>

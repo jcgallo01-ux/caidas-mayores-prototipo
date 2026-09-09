@@ -437,6 +437,30 @@ button:disabled {
   border: 1px solid rgba(217, 119, 6, 0.18);
 }
 
+.quick-video-record {
+  margin-top: 16px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  background: rgba(15, 118, 110, 0.06);
+}
+
+.quick-video-record-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.quick-video-record-header h3 {
+  margin: 0;
+}
+
+.quick-video-record-actions {
+  margin-top: 12px;
+}
+
 .video-analysis-settings {
   margin-top: 16px;
 }
@@ -937,6 +961,11 @@ table {
 
   .video-upload-header {
     align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .quick-video-record-header {
+    align-items: stretch;
     flex-direction: column;
   }
 
