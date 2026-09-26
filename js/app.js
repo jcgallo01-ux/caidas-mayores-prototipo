@@ -30,6 +30,8 @@ let testStartTime = null;
 let timerInterval = null;
 
 let baselineFootY = null;
+let baselineLeftFootY = null;
+let baselineRightFootY = null;
 let esperandoInicio = false;
 let triggerActivo = false;
 let pieActivo = null;
@@ -3478,6 +3480,8 @@ function actualizarTimer() {
 // ---------- Reset ----------
 function resetTrigger() {
   baselineFootY = null;
+  baselineLeftFootY = null;
+  baselineRightFootY = null;
   esperandoInicio = false;
   triggerActivo = false;
   pieActivo = null;
@@ -4203,37 +4207,45 @@ function procesarTrigger(results) {
     return;
   }
 
-  const footY = Math.min(leftFoot.y, rightFoot.y);
   const pieMasAlto = leftFoot.y <= rightFoot.y ? "left" : "right";
   const pieElevadoEsperado = getPieElevadoEsperado();
 
   // baseline inicial
   if (esperandoInicio && baselineFootY === null) {
-    baselineFootY = footY;
+    baselineLeftFootY = leftFoot.y;
+    baselineRightFootY = rightFoot.y;
+    baselineFootY = Math.min(leftFoot.y, rightFoot.y);
     baselineFrames = 1;
     return;
   }
 
-  if (baselineFootY === null) return;
+  if (baselineFootY === null || baselineLeftFootY === null || baselineRightFootY === null) return;
 
   if (esperandoInicio && baselineFrames < BASELINE_FRAMES_MIN) {
     baselineFrames += 1;
-    baselineFootY = (baselineFootY * 0.85) + (footY * 0.15);
+    baselineLeftFootY = (baselineLeftFootY * 0.85) + (leftFoot.y * 0.15);
+    baselineRightFootY = (baselineRightFootY * 0.85) + (rightFoot.y * 0.15);
+    baselineFootY = Math.min(baselineLeftFootY, baselineRightFootY);
     setStatus(`Calibrando postura inicial... ${baselineFrames}/${BASELINE_FRAMES_MIN}`);
     return;
   }
 
-  const delta = baselineFootY - footY;
+  const deltaIzquierdo = baselineLeftFootY - leftFoot.y;
+  const deltaDerecho = baselineRightFootY - rightFoot.y;
+  const deltaEsperado = pieElevadoEsperado === "left" ? deltaIzquierdo : deltaDerecho;
+  const deltaMaximo = Math.max(Math.abs(deltaIzquierdo), Math.abs(deltaDerecho));
   const diferenciaEntrePies = Math.abs(leftFoot.y - rightFoot.y);
-  lastDelta = delta;
+  lastDelta = deltaEsperado;
 
-  if (esperandoInicio) {
-    baselineFootY = (baselineFootY * 0.98) + (footY * 0.02);
+  if (esperandoInicio && !startReady) {
+    baselineLeftFootY = (baselineLeftFootY * 0.98) + (leftFoot.y * 0.02);
+    baselineRightFootY = (baselineRightFootY * 0.98) + (rightFoot.y * 0.02);
+    baselineFootY = Math.min(baselineLeftFootY, baselineRightFootY);
   }
 
   if (esperandoInicio && !triggerActivo && !startReady) {
     const posturaEstable =
-      Math.abs(delta) < UMBRAL_MOVIMIENTO_PREVIO_INICIO &&
+      deltaMaximo < UMBRAL_MOVIMIENTO_PREVIO_INICIO &&
       diferenciaEntrePies < UMBRAL_DIFERENCIA_PIES_INICIO;
 
     if (posturaEstable) {
@@ -4261,7 +4273,7 @@ function procesarTrigger(results) {
   // ---------- Inicio ----------
   if (esperandoInicio && !triggerActivo) {
     const levantaPieCorrecto = pieMasAlto === pieElevadoEsperado;
-    if (delta > UMBRAL_INICIO && diferenciaEntrePies > UMBRAL_DIFERENCIA_PIES_INICIO && levantaPieCorrecto) {
+    if (deltaEsperado > UMBRAL_INICIO && diferenciaEntrePies > UMBRAL_DIFERENCIA_PIES_INICIO && levantaPieCorrecto) {
       framesElevado++;
     } else {
       framesElevado = 0;
@@ -4287,8 +4299,6 @@ function procesarTrigger(results) {
   // ---------- Fin ----------
   if (testRunning && triggerActivo) {
     const tiempo = (Date.now() - testStartTime) / 1000;
-    const deltaIzquierdo = baselineFootY - leftFoot.y;
-    const deltaDerecho = baselineFootY - rightFoot.y;
     const deltaPieActivo =
       pieActivo === "left"
         ? deltaIzquierdo
