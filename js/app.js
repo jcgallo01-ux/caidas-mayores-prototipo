@@ -52,7 +52,7 @@ let analisisSitToStand = null;
 
 // Ajustes calibrables
 const UMBRAL_INICIO = 0.009;
-const UMBRAL_FIN = 0.028;
+const UMBRAL_FIN = 0.006;
 const FRAMES_INICIO = 1;
 const FRAMES_FIN = 2;
 const BASELINE_FRAMES_MIN = 12;
@@ -3388,11 +3388,11 @@ function syncTestActionButtons() {
     if (testRunning) {
       startTestButton.textContent = "Test en curso";
     } else if (startReady) {
-      startTestButton.textContent = "Listo";
+      startTestButton.textContent = "2. Levantar pie";
     } else if (esperandoInicio && !startReady) {
-      startTestButton.textContent = "Preparando...";
+      startTestButton.textContent = "1. Calibrando...";
     } else {
-      startTestButton.textContent = "Preparar test";
+      startTestButton.textContent = "1. Preparar prueba";
     }
   }
 
@@ -3445,7 +3445,7 @@ function renderTestPhaseHelp() {
     testPhaseHelpEl.textContent =
       pruebaActual === "sit_to_stand"
         ? `Test en curso. Mantenga al paciente centrado.${hiddenPatientHint}`
-        : `Test en curso. Sostenga la posicion hasta el cierre.${hiddenPatientHint}`;
+        : `Cronómetro en marcha. Mantenga el pie elevado; bájelo para finalizar.${hiddenPatientHint}`;
     return;
   }
 
@@ -3453,7 +3453,7 @@ function renderTestPhaseHelp() {
     testPhaseHelpEl.textContent =
       pruebaActual === "sit_to_stand"
         ? `Listo. Inicie el movimiento.${hiddenPatientHint}`
-        : `Listo. Acompañe de cerca e indique levantar el pie ${getPieLabel(getPieElevadoEsperado())}.${hiddenPatientHint}`;
+        : `2. Levante el pie ${getPieLabel(getPieElevadoEsperado())}. El cronómetro empezará solo.${hiddenPatientHint}`;
     return;
   }
 
@@ -3461,11 +3461,11 @@ function renderTestPhaseHelp() {
     testPhaseHelpEl.textContent =
       pruebaActual === "sit_to_stand"
         ? `Preparando. Ubique al paciente sentado y quieto.${hiddenPatientHint}`
-        : `Preparando. Mire la camara y quedese quieto.${hiddenPatientHint}`;
+        : `1. Quédese quieto: estamos calibrando los pies.${hiddenPatientHint}`;
     return;
   }
 
-  testPhaseHelpEl.textContent = `Presione Preparar test para comenzar.${hiddenPatientHint}`;
+  testPhaseHelpEl.textContent = `1. Toque Preparar prueba. Luego espere la indicación para levantar el pie.${hiddenPatientHint}`;
 }
 
 // ---------- Timer ----------
@@ -3545,7 +3545,7 @@ function prepararTest() {
     return;
   }
 
-  setStatus("Preparando...");
+  setStatus("1. Calibrando pies. Quédese quieto hasta ver la indicación.");
   updateControls();
 }
 
@@ -3578,7 +3578,11 @@ function iniciarTest(landmarks) {
 
   timerInterval = setInterval(actualizarTimer, 100);
 
-  setStatus(pruebaActual === "sit_to_stand" ? "Sit to Stand en curso..." : "Test en curso...");
+  setStatus(
+    pruebaActual === "sit_to_stand"
+      ? "Sit to Stand en curso..."
+      : "Cronómetro iniciado. Mantenga el pie elevado; bájelo para finalizar."
+  );
   updateControls();
 }
 
@@ -4311,12 +4315,12 @@ function procesarTrigger(results) {
     );
     const umbralRetornoDinamico = Math.max(
       UMBRAL_FIN,
-      (analisisMonopedia.maxDeltaPieActivo || 0) * 0.78
+      (analisisMonopedia.maxDeltaPieActivo || 0) * 0.45
     );
     const ambosPiesApoyados =
-      deltaIzquierdo < UMBRAL_FIN && deltaDerecho < UMBRAL_FIN;
+      Math.abs(deltaIzquierdo) < UMBRAL_FIN && Math.abs(deltaDerecho) < UMBRAL_FIN;
     const piesVolvieronAJuntarse = diferenciaEntrePies < UMBRAL_DIFERENCIA_PIES_FIN;
-    const pieActivoVolvio = deltaPieActivo < umbralRetornoDinamico;
+    const pieActivoVolvio = Math.abs(deltaPieActivo) < umbralRetornoDinamico;
 
     // evitar corte inmediato
     if (tiempo < MIN_TEST_SECONDS) return;
@@ -4329,7 +4333,7 @@ function procesarTrigger(results) {
     } else {
       framesApoyado = 0;
       instanteInicioApoyo = null;
-      setStatus("Test en curso... baje el pie para finalizar.");
+      setStatus("Cronómetro en marcha. Mantenga el pie elevado; bájelo para finalizar.");
     }
 
     if (framesApoyado >= FRAMES_FIN) {
