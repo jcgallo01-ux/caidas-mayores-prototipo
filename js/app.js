@@ -260,7 +260,12 @@ const edadCalculadaEl = document.getElementById("edadCalculada");
 const sexoPacienteEl = document.getElementById("sexoPaciente");
 const centroEl = document.getElementById("centro");
 const pruebaEl = document.getElementById("prueba");
+const ladoApoyoEl = document.getElementById("ladoApoyo");
+const supportSideFieldEl = document.getElementById("supportSideField");
 const observacionesEl = document.getElementById("observaciones");
+const framingSignalEl = document.getElementById("framingSignal");
+const framingSignalTitleEl = document.getElementById("framingSignalTitle");
+const framingSignalTextEl = document.getElementById("framingSignalText");
 
 // ---------- Persistencia / paciente ----------
 const STORAGE_KEY = "caidasMayoresRegistroV1";
@@ -786,6 +791,37 @@ function getPruebaActual() {
   return pruebaEl?.value || "monopedia";
 }
 
+function getLadoApoyo() {
+  return ladoApoyoEl?.value || "";
+}
+
+function normalizeLadoApoyo(lado) {
+  const normalized = normalizeText(lado);
+  if (["right", "derecha", "d"].includes(normalized)) return "right";
+  if (["left", "izquierda", "i"].includes(normalized)) return "left";
+  return "";
+}
+
+function getLadoApoyoLabel(lado = getLadoApoyo()) {
+  const normalized = normalizeLadoApoyo(lado);
+  if (normalized === "right") return "Derecha";
+  if (normalized === "left") return "Izquierda";
+  return "No informado";
+}
+
+function getPieElevadoEsperado() {
+  return getLadoApoyo() === "right" ? "left" : getLadoApoyo() === "left" ? "right" : "";
+}
+
+function getPieLabel(pie) {
+  return pie === "right" ? "derecho de la persona" : pie === "left" ? "izquierdo de la persona" : "";
+}
+
+function updateTestConfigurationUi() {
+  const isMonopedia = getPruebaActual() === "monopedia";
+  supportSideFieldEl?.classList.toggle("is-hidden", !isMonopedia);
+}
+
 function getNombrePrueba(prueba) {
   switch (prueba) {
     case "video_fall":
@@ -1070,7 +1106,9 @@ function getComparisonHighlights(tests) {
   if (!tests.length) return [];
 
   const byTest = tests.reduce((accumulator, test) => {
-    const key = test.prueba || "monopedia";
+    const key = test.prueba === "monopedia"
+      ? `monopedia_${test.ladoApoyo || "sin_lado"}`
+      : test.prueba || "monopedia";
     if (!accumulator[key]) accumulator[key] = [];
     accumulator[key].push(test);
     return accumulator;
@@ -1090,7 +1128,8 @@ function getComparisonHighlights(tests) {
             ? `cambio de +${delta.toFixed(1)} s`
             : `cambio de ${delta.toFixed(1)} s`;
 
-      return `${getNombrePrueba(last.prueba)}: ${ordered.length} registros, ${trendLabel} entre el primer y el último estudio cargado.`;
+      const sideLabel = last.prueba === "monopedia" ? ` (${getLadoApoyoLabel(last.ladoApoyo)})` : "";
+      return `${getNombrePrueba(last.prueba)}${sideLabel}: ${ordered.length} registros, ${trendLabel} entre el primer y el último estudio cargado.`;
     });
 }
 
@@ -1143,6 +1182,7 @@ function renderPatientHistory() {
           <tr>
             <th>Fecha</th>
             <th>Estudio</th>
+            <th>Apoyo</th>
             <th>Resultado</th>
             <th>Tiempo</th>
             <th>Riesgo</th>
@@ -1156,6 +1196,7 @@ function renderPatientHistory() {
                 <tr>
                   <td>${escapeHtml(formatDateTime(test.timestamp))}</td>
                   <td>${escapeHtml(getNombrePrueba(test.prueba || "monopedia"))}</td>
+                  <td>${escapeHtml(test.prueba === "monopedia" ? getLadoApoyoLabel(test.ladoApoyo) : "-")}</td>
                   <td>${escapeHtml(test.resultadoTitulo || "Sin clasificación")}</td>
                   <td>${escapeHtml(formatSeconds(test.tiempoSegundos))}</td>
                   <td><span class="history-risk ${escapeHtml(test.resultadoColor || "")}">${escapeHtml((test.resultadoColor || "sin dato").toUpperCase())}</span></td>
@@ -1206,6 +1247,7 @@ function downloadCsv() {
     "sexo",
     "centro",
     "prueba",
+    "lado_apoyo",
     "observaciones",
     "tiempo_segundos",
     "resultado_nivel",
@@ -1226,6 +1268,7 @@ function downloadCsv() {
       test.sexo,
       test.centro,
       test.prueba,
+      test.ladoApoyo || "",
       test.observaciones,
       Number(test.tiempoSegundos).toFixed(1),
       test.resultadoNivel,
@@ -1478,6 +1521,7 @@ function importTestsFromRows(rows) {
       sexo: patient.sexo || patientData.sexo || "",
       centro: patient.centro || patientData.centro || "",
       prueba,
+      ladoApoyo: normalizeLadoApoyo(getCsvValue(row, ["lado_apoyo", "pierna_apoyo", "apoyo"])),
       observaciones: patientData.observaciones || "",
       tiempoSegundos,
       resultadoNivel: getCsvValue(row, ["resultado_nivel"]) || resultado.nivel,
@@ -2191,6 +2235,7 @@ function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFi
 
   const edad = patientData.edad;
   const nombrePaciente = patientData.nombre || getPatientDisplayName(patient);
+  const ladoApoyo = analisisMonopedia?.ladoApoyo || getLadoApoyo();
   const resultado = clasificarRiesgoMonopedia(tiempoSegundos, edad);
   const eventos = analisisMonopedia?.eventos ?? crearAnalisisMonopedia().eventos;
   const interpretaciones = getInterpretacionesCompensaciones(eventos, motivoFin);
@@ -2231,6 +2276,7 @@ function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFi
       <div class="resultado-contenido">
         <h2>${resultado.titulo}</h2>
         <p><strong>${nombrePaciente}</strong>${edad !== null ? `, ${edad} años` : ""}</p>
+        <p><strong>Pierna de apoyo:</strong> ${getLadoApoyoLabel(ladoApoyo)}</p>
         <p><strong>Tiempo registrado:</strong> ${formatSeconds(tiempoSegundos)}</p>
         ${detalleMotivoFin}
         <p><strong>Interpretación:</strong> ${resultado.detalle}</p>
@@ -2259,6 +2305,7 @@ function renderResultadoMonopedia(patient, patientData, tiempoSegundos, motivoFi
       sexo: patient.sexo || "",
       centro: centroEl?.value?.trim() || "",
       prueba: "monopedia",
+      ladoApoyo,
       observaciones: observacionesEl?.value?.trim() || "",
       tiempoSegundos,
       resultadoNivel: resultado.nivel,
@@ -2665,6 +2712,7 @@ function buildQuickVideoObservation() {
 function syncSourceModeUi() {
   document.body.classList.toggle("file-source", sourceMode === "file");
   syncQuickVideoRecordPanel();
+  updateFramingSignal();
 }
 
 function syncSidebarButtonLabel() {
@@ -3140,7 +3188,7 @@ function getLandmarkVisibility(landmark) {
 function getFramingGuidance(landmarks) {
   if (!Array.isArray(landmarks) || !landmarks.length) {
     return {
-      severity: "warn",
+      severity: "danger",
       messages: ["No se detecta el cuerpo completo todavía."]
     };
   }
@@ -3158,17 +3206,17 @@ function getFramingGuidance(landmarks) {
   const headMissing =
     getLandmarkVisibility(nose) < VISIBILIDAD_MINIMA || (nose && nose.y < 0.03);
 
-  const tobillosVisibles =
+  const pieIzquierdoVisible =
     getLandmarkVisibility(leftAnkle) >= VISIBILIDAD_MINIMA ||
-    getLandmarkVisibility(rightAnkle) >= VISIBILIDAD_MINIMA;
-  const piesVisibles =
-    getLandmarkVisibility(leftFoot) >= VISIBILIDAD_MINIMA ||
+    getLandmarkVisibility(leftFoot) >= VISIBILIDAD_MINIMA;
+  const pieDerechoVisible =
+    getLandmarkVisibility(rightAnkle) >= VISIBILIDAD_MINIMA ||
     getLandmarkVisibility(rightFoot) >= VISIBILIDAD_MINIMA;
   const piesMuyAbajo =
     [leftFoot, rightFoot, leftAnkle, rightAnkle]
       .filter(Boolean)
       .every((landmark) => landmark.y > 0.985);
-  const feetMissing = (!tobillosVisibles && !piesVisibles) || piesMuyAbajo;
+  const feetMissing = !pieIzquierdoVisible || !pieDerechoVisible || piesMuyAbajo;
 
   const leftHandMissing =
     getLandmarkVisibility(leftWrist) < VISIBILIDAD_MINIMA || (leftWrist && leftWrist.x < 0.02);
@@ -3176,7 +3224,17 @@ function getFramingGuidance(landmarks) {
     getLandmarkVisibility(rightWrist) < VISIBILIDAD_MINIMA || (rightWrist && rightWrist.x > 0.98);
 
   if (headMissing) messages.push("Falta cabeza");
-  if (pruebaActual !== "sit_to_stand" && feetMissing) messages.push("Faltan pies");
+  if (pruebaActual !== "sit_to_stand" && feetMissing) {
+    if (!pieIzquierdoVisible && !pieDerechoVisible) {
+      messages.push("Faltan ambos pies de la persona");
+    } else if (!pieIzquierdoVisible) {
+      messages.push("Falta pie izquierdo de la persona");
+    } else if (!pieDerechoVisible) {
+      messages.push("Falta pie derecho de la persona");
+    } else {
+      messages.push("Bajá la cámara: los pies quedan fuera de cuadro");
+    }
+  }
   if (pruebaActual !== "sit_to_stand") {
     if (leftHandMissing && rightHandMissing) {
       messages.push("Faltan manos");
@@ -3195,21 +3253,51 @@ function getFramingGuidance(landmarks) {
   }
 
   return {
-    severity: "warn",
+    severity: messages.length >= 3 ? "danger" : "warn",
     messages
   };
 }
 
+function updateFramingSignal(guidance = null) {
+  if (!framingSignalEl) return;
+
+  const active = sourceMode === "camera" && cameraRunning;
+  framingSignalEl.hidden = !active;
+  if (!active) return;
+
+  const isReady = guidance?.severity === "ok";
+  const isDanger = guidance?.severity === "danger";
+  const message = guidance?.messages?.join(" · ") || "Buscando cuerpo completo...";
+  framingSignalEl.classList.toggle("is-ready", isReady);
+  framingSignalEl.classList.toggle("is-correct", !isReady && !isDanger);
+  framingSignalEl.classList.toggle("is-danger", isDanger);
+  framingSignalEl.classList.remove("is-idle");
+
+  if (framingSignalTitleEl) {
+    framingSignalTitleEl.textContent = isReady ? "LISTO" : isDanger ? "REUBICAR PERSONA" : "CORREGIR ENCUADRE";
+  }
+  if (framingSignalTextEl) framingSignalTextEl.textContent = message;
+}
+
 function drawFramingGuidance(landmarks) {
   const guidance = getFramingGuidance(landmarks);
+  updateFramingSignal(guidance);
   const boxWidth = Math.min(canvasElement.width - 32, 520);
   const boxHeight = 54;
   const x = 16;
   const y = 16;
 
   canvasCtx.save();
-  canvasCtx.fillStyle = guidance.severity === "ok" ? "rgba(18, 92, 63, 0.88)" : "rgba(122, 67, 20, 0.9)";
-  canvasCtx.strokeStyle = guidance.severity === "ok" ? "#4ef0b7" : "#f7b267";
+  canvasCtx.fillStyle = guidance.severity === "ok"
+    ? "rgba(18, 92, 63, 0.88)"
+    : guidance.severity === "danger"
+      ? "rgba(153, 27, 27, 0.92)"
+      : "rgba(122, 67, 20, 0.9)";
+  canvasCtx.strokeStyle = guidance.severity === "ok"
+    ? "#4ef0b7"
+    : guidance.severity === "danger"
+      ? "#fecaca"
+      : "#f7b267";
   canvasCtx.lineWidth = 2;
   if (typeof canvasCtx.roundRect === "function") {
     canvasCtx.beginPath();
@@ -3363,7 +3451,7 @@ function renderTestPhaseHelp() {
     testPhaseHelpEl.textContent =
       pruebaActual === "sit_to_stand"
         ? `Listo. Inicie el movimiento.${hiddenPatientHint}`
-        : `Listo. Levante un pie.${hiddenPatientHint}`;
+        : `Listo. Acompañe de cerca e indique levantar el pie ${getPieLabel(getPieElevadoEsperado())}.${hiddenPatientHint}`;
     return;
   }
 
@@ -3422,6 +3510,13 @@ function prepararTest() {
     return;
   }
 
+  if (getPruebaActual() === "monopedia" && !getLadoApoyo()) {
+    const message = "Elegí la pierna de apoyo antes de preparar Monopedia.";
+    setStatus(message);
+    renderPatientHelp(message);
+    return;
+  }
+
   upsertPatient(validation.patient);
   renderPatientHelp();
   renderPatientHistory();
@@ -3465,6 +3560,7 @@ function iniciarTest(landmarks) {
   } else {
     analisisMonopedia = crearAnalisisMonopedia();
     analisisMonopedia.ladoElevado = pieActivo;
+    analisisMonopedia.ladoApoyo = getLadoApoyo();
 
     if (landmarks) {
       const leftShoulder = landmarks[11];
@@ -4109,6 +4205,7 @@ function procesarTrigger(results) {
 
   const footY = Math.min(leftFoot.y, rightFoot.y);
   const pieMasAlto = leftFoot.y <= rightFoot.y ? "left" : "right";
+  const pieElevadoEsperado = getPieElevadoEsperado();
 
   // baseline inicial
   if (esperandoInicio && baselineFootY === null) {
@@ -4153,7 +4250,7 @@ function procesarTrigger(results) {
 
     startReady = true;
     updateControls();
-    setStatus("Listo, levante un pie");
+    setStatus(`Listo, levante el pie ${getPieLabel(pieElevadoEsperado)}.`);
     if (!readyCameraCentered) {
       readyCameraCentered = true;
       smoothScrollToElement(canvasElement, "nearest");
@@ -4163,12 +4260,17 @@ function procesarTrigger(results) {
 
   // ---------- Inicio ----------
   if (esperandoInicio && !triggerActivo) {
-    if (delta > UMBRAL_INICIO && diferenciaEntrePies > UMBRAL_DIFERENCIA_PIES_INICIO) {
+    const levantaPieCorrecto = pieMasAlto === pieElevadoEsperado;
+    if (delta > UMBRAL_INICIO && diferenciaEntrePies > UMBRAL_DIFERENCIA_PIES_INICIO && levantaPieCorrecto) {
       framesElevado++;
     } else {
       framesElevado = 0;
       if (startReady) {
-        setStatus("Listo. Levante un pie un poco más.");
+        setStatus(
+          levantaPieCorrecto
+            ? `Listo. Levante el pie ${getPieLabel(pieElevadoEsperado)} un poco más.`
+            : `Para evaluar apoyo en pierna ${getLadoApoyoLabel().toLowerCase()} de la persona, levante el pie ${getPieLabel(pieElevadoEsperado)}.`
+        );
       }
     }
 
@@ -4256,6 +4358,11 @@ pose.onResults((results) => {
     if (sourceMode === "camera") {
       drawSitToStandOverlay(results.poseLandmarks);
     }
+  } else if (sourceMode === "camera") {
+    updateFramingSignal({
+      severity: "danger",
+      messages: ["No se detecta el cuerpo completo"]
+    });
   }
 
   // ---------- CRONÓMETRO ----------
@@ -4368,6 +4475,10 @@ async function startCamera() {
     cameraRunning = true;
     processing = false;
     resetTrigger();
+    updateFramingSignal({
+      severity: "warn",
+      messages: ["Buscando cuerpo completo..."]
+    });
 
     toggleButton.textContent = "Apagar cámara";
     updateControls();
@@ -4529,10 +4640,20 @@ renderModeEl?.addEventListener("change", () => {
 });
 
 pruebaEl?.addEventListener("change", () => {
+  updateTestConfigurationUi();
   renderPatientHelp();
   if (!testRunning) {
     setStatus(`Prueba seleccionada: ${getNombrePrueba(getPruebaActual())}.`);
   }
+});
+
+ladoApoyoEl?.addEventListener("change", () => {
+  if (getPruebaActual() !== "monopedia" || testRunning) return;
+  setStatus(
+    getLadoApoyo()
+      ? `Monopedia configurada: apoyo en pierna ${getLadoApoyoLabel().toLowerCase()} de la persona.`
+      : "Elegí la pierna de apoyo antes de preparar Monopedia."
+  );
 });
 
 refreshCamerasButton?.addEventListener("click", async () => {
@@ -4901,6 +5022,7 @@ window.addEventListener("resize", syncBirthDateInputMode);
 renderPatientSelect();
 renderPatientHistory();
 updateCalculatedAge();
+updateTestConfigurationUi();
 
 timerEl.textContent = "0.0 s";
 limpiarResumen();

@@ -170,6 +170,15 @@
                   <option value="otros">Otros</option>
                 </select>
               </div>
+              <div id="supportSideField" class="campo">
+                <label for="ladoApoyo">Pierna de apoyo (persona)</label>
+                <select id="ladoApoyo">
+                  <option value="">Seleccionar</option>
+                  <option value="right">Derecha de la persona</option>
+                  <option value="left">Izquierda de la persona</option>
+                </select>
+                <p class="field-hint">Con cámara frontal, guiáte por el lado de la persona, no por el de la pantalla.</p>
+              </div>
               <div class="campo campo-amplio">
                 <label for="observaciones">Observaciones</label>
                 <input id="observaciones" type="text" placeholder="Notas breves">
@@ -194,6 +203,13 @@
           <div class="status-row">
             <div id="status" class="status-card">Complete paciente o encienda cámara para empezar.</div>
             <div id="timer" class="timer-card">00:00</div>
+          </div>
+          <div id="framingSignal" class="framing-signal is-idle" hidden aria-live="polite">
+            <span class="framing-signal-dot" aria-hidden="true"></span>
+            <div>
+              <strong id="framingSignalTitle">ENCADRE</strong>
+              <span id="framingSignalText">Encendé la cámara para verificar el cuerpo completo.</span>
+            </div>
           </div>
           <div class="status-actions">
             <button id="fallAlertChip" class="alert-chip" type="button" hidden>ALERTA CAÍDA ↘</button>
