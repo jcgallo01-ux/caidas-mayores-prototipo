@@ -28,6 +28,7 @@ let patientRegistry = {
 let testRunning = false;
 let testStartTime = null;
 let timerInterval = null;
+let manualTimerAwaiting = false;
 
 let baselineFootY = null;
 let baselineLeftFootY = null;
@@ -199,6 +200,8 @@ const toggleButton = document.getElementById("toggleCam");
 const startTestButton = document.getElementById("startTest");
 const stopTestButton = document.getElementById("stopTest");
 const nuevoTestButton = document.getElementById("nuevoTest");
+const manualTimerControlsEl = document.getElementById("manualTimerControls");
+const startManualTimerButton = document.getElementById("startManualTimer");
 const saveCsvButton = document.getElementById("saveCsv");
 const cameraModeEl = document.getElementById("cameraMode");
 const cameraDeviceEl = document.getElementById("cameraDevice");
@@ -264,6 +267,8 @@ const centroEl = document.getElementById("centro");
 const pruebaEl = document.getElementById("prueba");
 const ladoApoyoEl = document.getElementById("ladoApoyo");
 const supportSideFieldEl = document.getElementById("supportSideField");
+const timerModeEl = document.getElementById("timerMode");
+const timerModeFieldEl = document.getElementById("timerModeField");
 const observacionesEl = document.getElementById("observaciones");
 const framingSignalEl = document.getElementById("framingSignal");
 const framingSignalTitleEl = document.getElementById("framingSignalTitle");
@@ -797,6 +802,14 @@ function getLadoApoyo() {
   return ladoApoyoEl?.value || "";
 }
 
+function getTimerMode() {
+  return timerModeEl?.value === "manual" ? "manual" : "auto";
+}
+
+function isManualMonopediaMode() {
+  return getPruebaActual() === "monopedia" && getTimerMode() === "manual";
+}
+
 function normalizeLadoApoyo(lado) {
   const normalized = normalizeText(lado);
   if (["right", "derecha", "d"].includes(normalized)) return "right";
@@ -822,6 +835,8 @@ function getPieLabel(pie) {
 function updateTestConfigurationUi() {
   const isMonopedia = getPruebaActual() === "monopedia";
   supportSideFieldEl?.classList.toggle("is-hidden", !isMonopedia);
+  timerModeFieldEl?.classList.toggle("is-hidden", !isMonopedia);
+  if (timerModeEl) timerModeEl.disabled = testRunning || manualTimerAwaiting;
 }
 
 function getNombrePrueba(prueba) {
@@ -3387,6 +3402,8 @@ function syncTestActionButtons() {
   if (startTestButton) {
     if (testRunning) {
       startTestButton.textContent = "Test en curso";
+    } else if (manualTimerAwaiting) {
+      startTestButton.textContent = "Modo manual listo";
     } else if (startReady) {
       startTestButton.textContent = "2. Levantar pie";
     } else if (esperandoInicio && !startReady) {
@@ -3396,6 +3413,12 @@ function syncTestActionButtons() {
     }
   }
 
+  if (stopTestButton) {
+    stopTestButton.textContent = testRunning && isManualMonopediaMode()
+      ? "Finalizar prueba"
+      : "Detener test";
+  }
+
   if (nuevoTestButton) {
     nuevoTestButton.textContent = cameraRunning
       ? "Reiniciar"
@@ -3403,10 +3426,23 @@ function syncTestActionButtons() {
   }
 }
 
+function syncManualTimerControls() {
+  if (!manualTimerControlsEl) return;
+
+  const show =
+    sourceMode === "camera" &&
+    cameraRunning &&
+    isManualMonopediaMode() &&
+    manualTimerAwaiting &&
+    !testRunning;
+  manualTimerControlsEl.hidden = !show;
+  if (startManualTimerButton) startManualTimerButton.disabled = !show;
+}
+
 function updateControls() {
   const patientReady = validatePatientData({ allowPending: true }).ok;
   const cameraModeActive = cameraRunning && sourceMode === "camera";
-  startTestButton.disabled = !cameraModeActive || !patientReady;
+  startTestButton.disabled = !cameraModeActive || !patientReady || manualTimerAwaiting;
   nuevoTestButton.disabled = !cameraModeActive || !patientReady;
   stopTestButton.disabled = !cameraModeActive || !testRunning;
   if (savePatientButton) {
@@ -3418,6 +3454,8 @@ function updateControls() {
   updateApplyVideoModeButton();
   updateExportAnalyzedVideoButton();
   syncTestActionButtons();
+  syncManualTimerControls();
+  updateTestConfigurationUi();
   renderTestPhaseHelp();
 }
 
@@ -3445,7 +3483,14 @@ function renderTestPhaseHelp() {
     testPhaseHelpEl.textContent =
       pruebaActual === "sit_to_stand"
         ? `Test en curso. Mantenga al paciente centrado.${hiddenPatientHint}`
-        : `Cronómetro en marcha. Mantenga el pie elevado; bájelo para finalizar.${hiddenPatientHint}`;
+        : isManualMonopediaMode()
+          ? `Cronómetro en marcha. Finalice manualmente cuando corresponda.${hiddenPatientHint}`
+          : `Cronómetro en marcha. Mantenga el pie elevado; bájelo para finalizar.${hiddenPatientHint}`;
+    return;
+  }
+
+  if (manualTimerAwaiting) {
+    testPhaseHelpEl.textContent = `Modo manual: use el botón debajo de la pantalla para iniciar el cronómetro.${hiddenPatientHint}`;
     return;
   }
 
@@ -3488,6 +3533,7 @@ function resetTrigger() {
   baselineFrames = 0;
   stableStartFrames = 0;
   startReady = false;
+  manualTimerAwaiting = false;
   readyCameraCentered = false;
   lastDelta = 0;
   framesElevado = 0;
@@ -3526,9 +3572,9 @@ function prepararTest() {
   renderPatientHistory();
 
   resetTrigger();
-  esperandoInicio = true;
+  manualTimerAwaiting = isManualMonopediaMode();
+  esperandoInicio = !manualTimerAwaiting;
   limpiarResumen();
-  syncTestActionButtons();
 
   timerEl.textContent = "0.0 s";
   if (getPruebaActual() === "tug" || getPruebaActual() === "otros") {
@@ -3545,8 +3591,26 @@ function prepararTest() {
     return;
   }
 
+  if (manualTimerAwaiting) {
+    setStatus("Modo manual listo. Use el botón debajo de la pantalla para iniciar el cronómetro.");
+    updateControls();
+    return;
+  }
+
   setStatus("1. Calibrando pies. Quédese quieto hasta ver la indicación.");
   updateControls();
+}
+
+function iniciarCronometroManual() {
+  if (!manualTimerAwaiting || !isManualMonopediaMode()) return;
+  if (!cameraRunning || sourceMode !== "camera") {
+    setStatus("Encendé la cámara antes de iniciar el cronómetro.");
+    return;
+  }
+
+  manualTimerAwaiting = false;
+  pieActivo = getPieElevadoEsperado();
+  iniciarTest(null);
 }
 
 function iniciarTest(landmarks) {
@@ -3581,7 +3645,9 @@ function iniciarTest(landmarks) {
   setStatus(
     pruebaActual === "sit_to_stand"
       ? "Sit to Stand en curso..."
-      : "Cronómetro iniciado. Mantenga el pie elevado; bájelo para finalizar."
+      : isManualMonopediaMode()
+        ? "Cronómetro iniciado. Finalice manualmente cuando corresponda."
+        : "Cronómetro iniciado. Mantenga el pie elevado; bájelo para finalizar."
   );
   updateControls();
 }
@@ -3873,6 +3939,8 @@ function analizarEstabilidadMonopedia(landmarks) {
     trunkAngle > 10 || Math.abs(shoulderMidX - pelvisMidX) > UMBRAL_BALANCEO_TRONCO,
     tiempoSegundos
   );
+
+  if (isManualMonopediaMode()) return;
 
   if (!analisisMonopedia.piernaSeparadaDetectada) {
     framesContactoPiernas = 0;
@@ -4670,6 +4738,16 @@ ladoApoyoEl?.addEventListener("change", () => {
   );
 });
 
+timerModeEl?.addEventListener("change", () => {
+  if (getPruebaActual() !== "monopedia" || testRunning || manualTimerAwaiting) return;
+  setStatus(
+    isManualMonopediaMode()
+      ? "Monopedia en modo manual: el operador iniciará y finalizará el cronómetro."
+      : "Monopedia en modo automático: el cronómetro responderá al pie elevado."
+  );
+  renderTestPhaseHelp();
+});
+
 refreshCamerasButton?.addEventListener("click", async () => {
   await refreshCameraDevices();
   if (cameraRunning) {
@@ -5022,6 +5100,7 @@ fechaNacimientoMobileEl?.addEventListener("input", () => {
 startTestButton.onclick = prepararTest;
 stopTestButton.onclick = detenerTest;
 nuevoTestButton.onclick = nuevoTest;
+startManualTimerButton?.addEventListener("click", iniciarCronometroManual);
 
 // ---------- Init ----------
 if (cameraModeEl && isAppleMobile()) {

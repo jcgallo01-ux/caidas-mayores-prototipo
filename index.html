@@ -179,6 +179,14 @@
                 </select>
                 <p class="field-hint">Con cámara frontal, guiáte por el lado de la persona, no por el de la pantalla.</p>
               </div>
+              <div id="timerModeField" class="campo">
+                <label for="timerMode">Inicio del cronómetro</label>
+                <select id="timerMode">
+                  <option value="auto">Automático al levantar el pie</option>
+                  <option value="manual">Manual por el operador</option>
+                </select>
+                <p class="field-hint">Usá manual si vas a estar junto a la persona para asistirla.</p>
+              </div>
               <div class="campo campo-amplio">
                 <label for="observaciones">Observaciones</label>
                 <input id="observaciones" type="text" placeholder="Notas breves">
@@ -222,6 +230,10 @@
           <div class="stage">
             <canvas id="canvas" width="960" height="540"></canvas>
             <video id="video" autoplay playsinline muted></video>
+          </div>
+          <div id="manualTimerControls" class="manual-timer-controls" hidden>
+            <p>Modo manual listo. Cuando la persona esté estable, iniciá el cronómetro.</p>
+            <button id="startManualTimer" type="button">Iniciar cronómetro</button>
           </div>
 
           <details class="panel section-panel controls-panel compact-section" data-view-section="tests" open>

@@ -755,6 +755,34 @@ body.file-source .stage {
   padding: 10px;
 }
 
+.manual-timer-controls {
+  margin: 14px 0 4px;
+  padding: 16px;
+  text-align: center;
+  border: 2px solid rgba(15, 118, 110, 0.32);
+  border-radius: 18px;
+  background: rgba(15, 118, 110, 0.1);
+}
+
+.manual-timer-controls p {
+  margin: 0 0 12px;
+  color: #0d5a54;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.manual-timer-controls button {
+  width: 100%;
+  min-height: 58px;
+  font-size: 18px;
+  font-weight: 800;
+  background: #0f766e;
+}
+
+.manual-timer-controls button:hover {
+  background: #0b5e58;
+}
+
 canvas {
   display: block;
   width: 100%;
